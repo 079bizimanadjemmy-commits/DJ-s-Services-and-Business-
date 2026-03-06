@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Music, 
   Calendar, 
@@ -14,11 +14,143 @@ import {
   Mic2,
   PartyPopper,
   Briefcase,
-  Heart
+  Heart,
+  Send,
+  Bot,
+  Loader2,
+  User,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI } from "@google/genai";
+
+// --- AI Service ---
+const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 // --- Components ---
+
+const AIChatbot = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<{role: 'user' | 'bot', text: string}[]>([
+    { role: 'bot', text: "Hello! I'm your AI assistant for DJ'S SERVICES & BUSINESS. How can I help you plan your perfect event today?" }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!input.trim() || isLoading) return;
+
+    const userMessage = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', text: userMessage }]);
+    setIsLoading(true);
+
+    try {
+      const model = "gemini-3-flash-preview";
+      const response = await genAI.models.generateContent({
+        model,
+        contents: userMessage,
+        config: {
+          systemInstruction: "You are a professional AI assistant for 'DJ'S SERVICES & BUSINESS', a luxury DJ service for weddings and events. Your goal is to be helpful, elegant, and professional. You should answer questions about our services (Wedding DJ, Ceremony DJ, Birthday Parties, etc.), our DJs (DJ Emmy & DJ Peter), and encourage users to book via the contact form. Keep responses concise and high-end. If asked about pricing, suggest they contact us for a custom quote.",
+        }
+      });
+
+      const botResponse = response.text || "I'm sorry, I couldn't process that. Please contact our team directly for more information.";
+      setMessages(prev => [...prev, { role: 'bot', text: botResponse }]);
+    } catch (error) {
+      console.error("AI Error:", error);
+      setMessages(prev => [...prev, { role: 'bot', text: "I'm having a little trouble connecting right now. Please feel free to call us directly!" }]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed bottom-6 right-6 z-[100]">
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="bg-black border border-gold/30 w-[350px] sm:w-[400px] h-[500px] rounded-3xl shadow-2xl flex flex-col overflow-hidden mb-4"
+          >
+            {/* Header */}
+            <div className="gold-gradient p-4 flex justify-between items-center">
+              <div className="flex items-center gap-2 text-black">
+                <Bot size={24} />
+                <span className="font-bold uppercase tracking-widest text-sm">AI Event Assistant</span>
+              </div>
+              <button onClick={() => setIsOpen(false)} className="text-black hover:rotate-90 transition-transform">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Messages */}
+            <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-gold/20">
+              {messages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] p-3 rounded-2xl text-sm ${
+                    msg.role === 'user' 
+                      ? 'bg-gold text-black rounded-tr-none' 
+                      : 'bg-zinc-900 text-white border border-white/5 rounded-tl-none'
+                  }`}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-zinc-900 p-3 rounded-2xl rounded-tl-none border border-white/5">
+                    <Loader2 className="w-4 h-4 text-gold animate-spin" />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Input */}
+            <div className="p-4 border-t border-white/5 bg-zinc-950">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                  placeholder="Ask about our services..."
+                  className="flex-1 bg-black border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:border-gold outline-none"
+                />
+                <button 
+                  onClick={handleSend}
+                  disabled={isLoading}
+                  className="bg-gold text-black p-2 rounded-full hover:scale-110 transition-transform disabled:opacity-50"
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => setIsOpen(!isOpen)}
+        className="gold-gradient p-4 rounded-full shadow-2xl relative group"
+      >
+        <div className="absolute -top-1 -right-1 bg-white text-black text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-bounce">AI</div>
+        <Sparkles className="text-black group-hover:rotate-12 transition-transform" />
+      </motion.button>
+    </div>
+  );
+};
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -128,6 +260,12 @@ const Hero = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
         >
+          <div className="flex justify-center mb-6">
+            <div className="bg-gold/10 border border-gold/30 px-4 py-1 rounded-full flex items-center gap-2 backdrop-blur-sm">
+              <Sparkles size={14} className="text-gold animate-pulse" />
+              <span className="text-[10px] text-gold font-bold uppercase tracking-[0.2em]">AI-Powered Entertainment</span>
+            </div>
+          </div>
           <span className="text-gold tracking-[0.5em] uppercase text-sm font-bold mb-4 block">Weddings • Ceremonies • Events</span>
           <h1 className="text-5xl md:text-8xl font-bold mb-6 tracking-tighter leading-tight">
             DJ'S SERVICES <br />
@@ -341,10 +479,20 @@ const Contact = () => {
     message: ''
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    alert('Thank you for your booking request! We will contact you shortly.');
-    setFormData({ name: '', phone: '', date: '', message: '' });
+  const handleSubmit = (type: 'whatsapp' | 'email') => {
+    const message = `Booking Request from DJ'S SERVICES Website:
+Name: ${formData.name}
+Phone: ${formData.phone}
+Event Date: ${formData.date}
+Message: ${formData.message}`;
+
+    if (type === 'whatsapp') {
+      const whatsappUrl = `https://wa.me/250798628085?text=${encodeURIComponent(message)}`;
+      window.open(whatsappUrl, '_blank');
+    } else {
+      const emailUrl = `mailto:079bizimanadjemmy@gmail.com?subject=New Booking Request - DJ'S SERVICES&body=${encodeURIComponent(message)}`;
+      window.location.href = emailUrl;
+    }
   };
 
   return (
@@ -405,7 +553,7 @@ const Contact = () => {
               <Calendar className="text-gold" />
               Book Your Date
             </h3>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-white/50 text-sm uppercase tracking-widest mb-2">Name</label>
@@ -450,12 +598,25 @@ const Contact = () => {
                   placeholder="Tell us about your event..."
                 ></textarea>
               </div>
-              <button 
-                type="submit"
-                className="w-full gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all"
-              >
-                Submit Booking Request
-              </button>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <button 
+                  type="button"
+                  onClick={() => handleSubmit('whatsapp')}
+                  className="flex items-center justify-center gap-2 bg-emerald-600 py-4 rounded-xl text-white font-bold uppercase tracking-widest hover:bg-emerald-500 transition-all"
+                >
+                  <MessageSquare size={20} />
+                  Send to WhatsApp
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => handleSubmit('email')}
+                  className="flex items-center justify-center gap-2 gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all"
+                >
+                  <Send size={20} />
+                  Send via Email
+                </button>
+              </div>
             </form>
           </motion.div>
         </div>
@@ -496,6 +657,7 @@ export default function App() {
       <Gallery />
       <Contact />
       <Footer />
+      <AIChatbot />
     </div>
   );
 }
