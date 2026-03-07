@@ -7,7 +7,6 @@ import dotenv from "dotenv";
 import multer from "multer";
 import fs from "fs";
 import nodemailer from "nodemailer";
-import { v4 as uuidv4 } from "uuid";
 
 dotenv.config();
 
@@ -75,12 +74,6 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
     value TEXT
-  );
-
-  CREATE TABLE IF NOT EXISTS login_requests (
-    id TEXT PRIMARY KEY,
-    status TEXT DEFAULT 'pending', -- pending, approved, rejected
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 `);
 
@@ -175,89 +168,16 @@ async function startServer() {
     }
   });
 
-  // Admin Routes (Email Approval Auth)
-  app.post("/api/admin/request-login", async (req, res) => {
-    const requestId = uuidv4();
-    const adminEmail = process.env.ADMIN_EMAIL || "079bizimanadjemmy@gmail.com";
-    const appUrl = process.env.APP_URL || `http://localhost:3000`;
-
-    try {
-      db.prepare("INSERT INTO login_requests (id) VALUES (?)").run(requestId);
-
-      const approveUrl = `${appUrl}/api/admin/approve?id=${requestId}&status=yes`;
-      const rejectUrl = `${appUrl}/api/admin/approve?id=${requestId}&status=no`;
-
-      const smtpConfig = getSmtpConfig();
-      const transporter = nodemailer.createTransport(smtpConfig);
-
-      await transporter.sendMail({
-        from: `"DJ'S SERVICES Admin" <${smtpConfig.auth.user}>`,
-        to: adminEmail,
-        subject: "Login Approval Request",
-        html: `
-          <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-            <h2 style="color: #D4AF37;">Login Approval Request</h2>
-            <p>A login attempt was made for the Admin Dashboard.</p>
-            <p>Do you approve this login?</p>
-            <div style="margin-top: 20px;">
-              <a href="${approveUrl}" style="background-color: #22c55e; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-right: 10px;">YES, Approve</a>
-              <a href="${rejectUrl}" style="background-color: #ef4444; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">NO, Reject</a>
-            </div>
-          </div>
-        `,
-      });
-
-      res.json({ success: true, requestId });
-    } catch (error) {
-      console.error("Failed to send approval email", error);
-      res.status(500).json({ error: "Failed to send approval email. Please check your Mail Settings in the Admin Dashboard." });
-    }
-  });
-
-  app.get("/api/admin/poll-login/:id", (req, res) => {
-    const { id } = req.params;
-    const request = db.prepare("SELECT status FROM login_requests WHERE id = ?").get() as { status: string } | undefined;
-    
-    if (!request) {
-      return res.status(404).json({ error: "Request not found" });
-    }
-
-    if (request.status === 'approved') {
-      res.json({ status: 'approved', token: "mock-jwt-token" });
-    } else if (request.status === 'rejected') {
-      res.json({ status: 'rejected' });
-    } else {
-      res.json({ status: 'pending' });
-    }
-  });
-
-  app.get("/api/admin/approve", (req, res) => {
-    const { id, status } = req.query;
-    const newStatus = status === 'yes' ? 'approved' : 'rejected';
-
-    try {
-      db.prepare("UPDATE login_requests SET status = ? WHERE id = ?").run(newStatus, id);
-      res.send(`
-        <div style="font-family: sans-serif; text-align: center; padding: 50px;">
-          <h1 style="color: ${newStatus === 'approved' ? '#22c55e' : '#ef4444'}">
-            Login ${newStatus === 'approved' ? 'Approved' : 'Rejected'}
-          </h1>
-          <p>You can close this window now.</p>
-        </div>
-      `);
-    } catch (error) {
-      res.status(500).send("Failed to update request status");
-    }
-  });
-
+  // Admin Routes (Direct Password Auth)
   app.post("/api/admin/login", (req, res) => {
-    // Legacy login for backward compatibility or if password is still needed
-    const { password } = req.body;
-    const storedPass = db.prepare("SELECT value FROM settings WHERE key = 'admin_password'").get() as { value: string };
-    if (password === storedPass.value) {
+    const { email, password } = req.body;
+    const adminEmail = process.env.ADMIN_EMAIL || "079bizimanadjemmy@gmail.com";
+    const adminPassword = process.env.ADMIN_PASSWORD || "073bizimana59";
+
+    if (email === adminEmail && password === adminPassword) {
       res.json({ success: true, token: "mock-jwt-token" });
     } else {
-      res.status(401).json({ error: "Invalid password" });
+      res.status(401).json({ error: "Invalid email or password" });
     }
   });
 
@@ -288,6 +208,27 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update SMTP settings" });
+    }
+  });
+
+  app.post("/api/admin/test-email", async (req, res) => {
+    const smtpConfig = getSmtpConfig();
+    if (!smtpConfig.auth.user) {
+      return res.status(400).json({ error: "SMTP User not configured" });
+    }
+
+    try {
+      const transporter = nodemailer.createTransport(smtpConfig);
+      await transporter.sendMail({
+        from: `"DJ'S SERVICES Test" <${smtpConfig.auth.user}>`,
+        to: smtpConfig.auth.user,
+        subject: "SMTP Test Connection",
+        text: "If you are reading this, your SMTP settings are working correctly!",
+      });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("SMTP Test Failed", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "SMTP Test Failed" });
     }
   });
 

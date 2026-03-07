@@ -263,6 +263,21 @@ const AdminDashboard = ({ onLogout }: { onLogout: () => void }) => {
     }
   };
 
+  const handleTestEmail = async () => {
+    setSmtpMessage({ text: 'Sending test email...', type: 'info' });
+    try {
+      const res = await fetch('/api/admin/test-email', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setSmtpMessage({ text: 'Test email sent successfully! Check your inbox.', type: 'success' });
+      } else {
+        setSmtpMessage({ text: `Test failed: ${data.error}`, type: 'error' });
+      }
+    } catch (error) {
+      setSmtpMessage({ text: 'An error occurred during test.', type: 'error' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-zinc-950 text-white p-4 md:p-8 pt-24">
       <div className="max-w-6xl mx-auto">
@@ -625,13 +640,22 @@ const AdminDashboard = ({ onLogout }: { onLogout: () => void }) => {
                   <label htmlFor="smtp-secure" className="text-xs uppercase tracking-widest text-white/60">Use SSL/TLS (Secure)</label>
                 </div>
                 {smtpMessage.text && (
-                  <p className={`text-xs text-center ${smtpMessage.type === 'success' ? 'text-green-500' : 'text-red-500'}`}>
+                  <p className={`text-xs text-center ${smtpMessage.type === 'success' ? 'text-green-500' : smtpMessage.type === 'error' ? 'text-red-500' : 'text-gold'}`}>
                     {smtpMessage.text}
                   </p>
                 )}
-                <button type="submit" className="w-full gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest text-sm hover:scale-[1.02] transition-all">
-                  Update Mail Settings
-                </button>
+                <div className="flex gap-4">
+                  <button type="submit" className="flex-1 gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest text-sm hover:scale-[1.02] transition-all">
+                    Update Mail Settings
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={handleTestEmail}
+                    className="px-6 bg-zinc-800 border border-white/10 rounded-xl text-white font-bold uppercase tracking-widest text-[10px] hover:bg-zinc-700 transition-all"
+                  >
+                    Test
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -2040,8 +2064,8 @@ export default function App() {
   const [lang, setLang] = useState<Language>('en');
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
-  const [isWaitingApproval, setIsWaitingApproval] = useState(false);
-  const [requestId, setRequestId] = useState<string | null>(null);
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
   useEffect(() => {
@@ -2050,47 +2074,23 @@ export default function App() {
     return () => window.removeEventListener('open-admin', handleOpenAdmin);
   }, []);
 
-  useEffect(() => {
-    let pollInterval: any;
-    if (isWaitingApproval && requestId) {
-      pollInterval = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/admin/poll-login/${requestId}`);
-          const data = await res.json();
-          if (data.status === 'approved') {
-            setIsAdmin(true);
-            setShowLogin(false);
-            setIsWaitingApproval(false);
-            setRequestId(null);
-            clearInterval(pollInterval);
-          } else if (data.status === 'rejected') {
-            setLoginError('Login request was rejected.');
-            setIsWaitingApproval(false);
-            setRequestId(null);
-            clearInterval(pollInterval);
-          }
-        } catch (error) {
-          console.error("Polling error", error);
-        }
-      }, 3000);
-    }
-    return () => clearInterval(pollInterval);
-  }, [isWaitingApproval, requestId]);
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     try {
-      const res = await fetch('/api/admin/request-login', {
+      const res = await fetch('/api/admin/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password: loginPassword })
       });
       const data = await res.json();
       if (data.success) {
-        setIsWaitingApproval(true);
-        setRequestId(data.requestId);
+        setIsAdmin(true);
+        setShowLogin(false);
+        setLoginEmail('');
+        setLoginPassword('');
       } else {
-        setLoginError(data.error || 'Failed to request login.');
+        setLoginError(data.error || 'Invalid credentials');
       }
     } catch (error) {
       setLoginError('An error occurred. Please try again.');
@@ -2144,36 +2144,43 @@ export default function App() {
             >
               <div className="text-center mb-8">
                 <div className="bg-gold/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  {isWaitingApproval ? (
-                    <Loader2 className="text-gold animate-spin" size={32} />
-                  ) : (
-                    <Lock className="text-gold" size={32} />
-                  )}
+                  <Lock className="text-gold" size={32} />
                 </div>
                 <h2 className="text-2xl font-bold text-white">Admin Access</h2>
-                <p className="text-white/40 text-sm mt-2">
-                  {isWaitingApproval 
-                    ? "Waiting for admin approval..." 
-                    : "Click the button below to request access"}
-                </p>
+                <p className="text-white/40 text-sm mt-2">Enter your credentials to continue</p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-6">
                 {loginError && <p className="text-red-500 text-xs mt-2 text-center">{loginError}</p>}
-                {!isWaitingApproval && (
-                  <button type="submit" className="w-full gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest hover:scale-[1.02] transition-all">
-                    Request Login Approval
-                  </button>
-                )}
-                {isWaitingApproval && (
-                  <button 
-                    type="button" 
-                    onClick={() => setIsWaitingApproval(false)}
-                    className="w-full bg-white/5 py-4 rounded-xl text-white/40 font-bold uppercase tracking-widest hover:bg-white/10 transition-all"
-                  >
-                    Cancel Request
-                  </button>
-                )}
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Email Address</label>
+                    <input 
+                      type="email" 
+                      required
+                      value={loginEmail}
+                      onChange={e => setLoginEmail(e.target.value)}
+                      placeholder="admin@example.com"
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-sm focus:border-gold outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Password</label>
+                    <input 
+                      type="password" 
+                      required
+                      value={loginPassword}
+                      onChange={e => setLoginPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-sm focus:border-gold outline-none"
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" className="w-full gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest hover:scale-[1.02] transition-all">
+                  Login
+                </button>
               </form>
             </motion.div>
           </div>
