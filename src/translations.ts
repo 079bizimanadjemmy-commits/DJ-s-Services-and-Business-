@@ -8,6 +8,7 @@ export const translations = {
       about: 'About',
       services: 'Services',
       gallery: 'Gallery',
+      videos: 'Videos',
       testimonials: 'Testimonials',
       location: 'Location',
       contact: 'Contact',
@@ -55,6 +56,10 @@ export const translations = {
     gallery: {
       title: 'Event Gallery',
       subtitle: "A glimpse into the unforgettable moments we've created.",
+    },
+    videos: {
+      title: 'Event Highlights',
+      subtitle: 'Experience the energy and atmosphere of our live performances.',
     },
     testimonials: {
       title: 'What Our Clients Say',
@@ -145,6 +150,7 @@ export const translations = {
       about: 'Turi ba nde',
       services: 'Serivisi',
       gallery: 'Amafoto',
+      videos: 'Videwo',
       testimonials: 'Ubuhamya',
       location: 'Aho dukorera',
       contact: 'Twandikire',
@@ -192,6 +198,10 @@ export const translations = {
     gallery: {
       title: 'Amafoto y’ibirori',
       subtitle: 'Akajisho ku bihe bitazibagirana twaremye.',
+    },
+    videos: {
+      title: 'Ibyaranze Ibirori',
+      subtitle: 'Incamake y’uburyo ibirori byacu biba bimeze.',
     },
     testimonials: {
       title: 'Ibyo abakiriya bacu bavuga',
@@ -282,6 +292,7 @@ export const translations = {
       about: 'À propos',
       services: 'Services',
       gallery: 'Galerie',
+      videos: 'Vidéos',
       testimonials: 'Témoignages',
       location: 'Emplacement',
       contact: 'Contact',
@@ -329,6 +340,10 @@ export const translations = {
     gallery: {
       title: 'Galerie d’événements',
       subtitle: 'Un aperçu des moments inoubliables que nous avons créés.',
+    },
+    videos: {
+      title: 'Points forts de l\'événement',
+      subtitle: 'Découvrez l\'énergie et l\'atmosphère de nos performances en direct.',
     },
     testimonials: {
       title: 'Ce que disent nos clients',

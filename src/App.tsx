@@ -23,7 +23,13 @@ import {
   Sparkles,
   MapPin,
   CheckCircle2,
-  ArrowLeft
+  ArrowLeft,
+  Settings,
+  Trash2,
+  Plus,
+  LogOut,
+  Eye,
+  Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
@@ -32,6 +38,500 @@ import { Language, translations } from './translations';
 
 // --- AI Service ---
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+
+// --- Admin Dashboard ---
+
+const AdminDashboard = ({ onLogout }: { onLogout: () => void }) => {
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [gallery, setGallery] = useState<any[]>([]);
+  const [videos, setVideos] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [newImage, setNewImage] = useState({ src: '', title: '' });
+  const [newVideo, setNewVideo] = useState({ url: '', title: '' });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'bookings' | 'gallery' | 'videos' | 'reviews' | 'settings'>('bookings');
+  const [passMessage, setPassMessage] = useState({ text: '', type: '' });
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [bookingsRes, galleryRes, videosRes, reviewsRes] = await Promise.all([
+        fetch('/api/admin/bookings'),
+        fetch('/api/gallery'),
+        fetch('/api/videos'),
+        fetch('/api/admin/reviews')
+      ]);
+      const bookingsData = await bookingsRes.json();
+      const galleryData = await galleryRes.json();
+      const videosData = await videosRes.json();
+      const reviewsData = await reviewsRes.json();
+      setBookings(bookingsData);
+      setGallery(galleryData);
+      setVideos(videosData);
+      setReviews(reviewsData);
+    } catch (error) {
+      console.error("Failed to fetch admin data", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const uploadFile = async (file: File): Promise<string | null> => {
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        body: formData
+      });
+      if (res.ok) {
+        const data = await res.json();
+        return data.url;
+      }
+      return null;
+    } catch (error) {
+      console.error("Upload failed", error);
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleAddImage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    let src = newImage.src;
+    
+    if (selectedFile) {
+      const uploadedUrl = await uploadFile(selectedFile);
+      if (uploadedUrl) src = uploadedUrl;
+      else return alert("Failed to upload image");
+    }
+
+    if (!src) return alert("Please provide an image URL or select a file");
+
+    try {
+      const res = await fetch('/api/admin/gallery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newImage, src })
+      });
+      if (res.ok) {
+        setNewImage({ src: '', title: '' });
+        setSelectedFile(null);
+        fetchData();
+      }
+    } catch (error) {
+      console.error("Failed to add image", error);
+    }
+  };
+
+  const handleDeleteImage = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this image?")) return;
+    try {
+      const res = await fetch(`/api/admin/gallery/${id}`, { method: 'DELETE' });
+      if (res.ok) fetchData();
+    } catch (error) {
+      console.error("Failed to delete image", error);
+    }
+  };
+
+  const handleAddVideo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    let url = newVideo.url;
+
+    if (selectedFile) {
+      const uploadedUrl = await uploadFile(selectedFile);
+      if (uploadedUrl) url = uploadedUrl;
+      else return alert("Failed to upload video");
+    }
+
+    if (!url) return alert("Please provide a video URL or select a file");
+
+    try {
+      const res = await fetch('/api/admin/videos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newVideo, url })
+      });
+      if (res.ok) {
+        setNewVideo({ url: '', title: '' });
+        setSelectedFile(null);
+        fetchData();
+      }
+    } catch (error) {
+      console.error("Failed to add video", error);
+    }
+  };
+
+  const handleDeleteVideo = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this video?")) return;
+    try {
+      const res = await fetch(`/api/admin/videos/${id}`, { method: 'DELETE' });
+      if (res.ok) fetchData();
+    } catch (error) {
+      console.error("Failed to delete video", error);
+    }
+  };
+
+  const handleTogglePublish = async (id: number, currentStatus: number) => {
+    try {
+      const res = await fetch(`/api/admin/reviews/${id}/publish`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ published: !currentStatus })
+      });
+      if (res.ok) fetchData();
+    } catch (error) {
+      console.error("Failed to toggle publish status", error);
+    }
+  };
+
+  const handleDeleteReview = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this review?")) return;
+    try {
+      const res = await fetch(`/api/admin/reviews/${id}`, { method: 'DELETE' });
+      if (res.ok) fetchData();
+    } catch (error) {
+      console.error("Failed to delete review", error);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassMessage({ text: '', type: '' });
+    try {
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newPassword })
+      });
+      if (res.ok) {
+        setPassMessage({ text: 'Password updated successfully!', type: 'success' });
+        setNewPassword('');
+      } else {
+        setPassMessage({ text: 'Failed to update password.', type: 'error' });
+      }
+    } catch (error) {
+      setPassMessage({ text: 'An error occurred.', type: 'error' });
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-zinc-950 text-white p-4 md:p-8 pt-24">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold gold-text-gradient">Admin Dashboard</h1>
+            <p className="text-white/50">Manage your bookings and website content</p>
+          </div>
+          <button 
+            onClick={onLogout}
+            className="flex items-center gap-2 bg-red-500/10 text-red-500 border border-red-500/20 px-4 py-2 rounded-full hover:bg-red-500 hover:text-white transition-all"
+          >
+            <LogOut size={18} />
+            Logout
+          </button>
+        </div>
+
+        <div className="flex flex-wrap gap-4 mb-8 border-b border-white/10">
+          {[
+            { id: 'bookings', label: `Bookings (${bookings.length})` },
+            { id: 'gallery', label: `Gallery (${gallery.length})` },
+            { id: 'videos', label: `Videos (${videos.length})` },
+            { id: 'reviews', label: `Reviews (${reviews.length})` },
+            { id: 'settings', label: 'Settings' }
+          ].map(tab => (
+            <button 
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`pb-4 px-2 font-bold uppercase tracking-widest text-xs transition-all ${activeTab === tab.id ? 'text-gold border-b-2 border-gold' : 'text-white/40 hover:text-white'}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {isLoading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="text-gold animate-spin w-10 h-10" />
+          </div>
+        ) : activeTab === 'bookings' ? (
+          <div className="space-y-4">
+            {bookings.length === 0 ? (
+              <div className="text-center py-20 bg-zinc-900/30 rounded-3xl border border-white/5">
+                <Calendar className="mx-auto text-white/20 mb-4" size={48} />
+                <p className="text-white/40">No bookings yet</p>
+              </div>
+            ) : (
+              bookings.map((booking) => (
+                <div key={booking.id} className="bg-zinc-900/50 border border-white/5 p-6 rounded-3xl hover:border-gold/20 transition-all">
+                  <div className="flex flex-col md:flex-row justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <User size={16} className="text-gold" />
+                        <h3 className="font-bold text-lg">{booking.name}</h3>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-sm text-white/60">
+                        <div className="flex items-center gap-2">
+                          <Phone size={14} />
+                          {booking.phone}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Calendar size={14} />
+                          {booking.date}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-white/30 text-right">
+                      {new Date(booking.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="mt-4 p-4 bg-black/40 rounded-xl text-white/80 text-sm italic">
+                    "{booking.message}"
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : activeTab === 'gallery' ? (
+          <div className="grid lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1">
+              <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-3xl sticky top-24">
+                <h3 className="font-bold text-xl mb-6 flex items-center gap-2">
+                  <Plus size={20} className="text-gold" />
+                  Add Image
+                </h3>
+                <form onSubmit={handleAddImage} className="space-y-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Upload from Device</label>
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none file:bg-gold/10 file:text-gold file:border-none file:rounded-lg file:px-3 file:py-1 file:mr-4 file:text-xs file:font-bold file:uppercase"
+                    />
+                  </div>
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                      <div className="w-full border-t border-white/5"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-zinc-900 px-2 text-white/20">Or use URL</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Image URL</label>
+                    <input 
+                      type="url" 
+                      value={newImage.src}
+                      onChange={e => setNewImage({...newImage, src: e.target.value})}
+                      placeholder="https://images.unsplash.com/..."
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Title</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={newImage.title}
+                      onChange={e => setNewImage({...newImage, title: e.target.value})}
+                      placeholder="e.g. Wedding Party"
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
+                    />
+                  </div>
+                  <button 
+                    type="submit" 
+                    disabled={isUploading}
+                    className="w-full gold-gradient py-3 rounded-xl text-black font-bold uppercase tracking-widest text-sm hover:scale-[1.02] transition-all disabled:opacity-50"
+                  >
+                    {isUploading ? 'Uploading...' : 'Save to Gallery'}
+                  </button>
+                </form>
+              </div>
+            </div>
+            <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4">
+              {gallery.map((img) => (
+                <div key={img.id} className="relative group rounded-2xl overflow-hidden aspect-video border border-white/5">
+                  <img src={img.src} alt={img.title} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-4">
+                    <div className="flex justify-end">
+                      <button 
+                        onClick={() => handleDeleteImage(img.id)}
+                        className="bg-red-500 p-2 rounded-full text-white hover:scale-110 transition-transform"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    <p className="text-white font-bold text-sm uppercase tracking-widest">{img.title}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : activeTab === 'videos' ? (
+          <div className="grid lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-1">
+              <div className="bg-zinc-900/50 border border-white/5 p-6 rounded-3xl sticky top-24">
+                <h3 className="font-bold text-xl mb-6 flex items-center gap-2">
+                  <Plus size={20} className="text-gold" />
+                  Add Video
+                </h3>
+                <form onSubmit={handleAddVideo} className="space-y-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Upload from Device</label>
+                    <input 
+                      type="file" 
+                      accept="video/*"
+                      onChange={e => setSelectedFile(e.target.files?.[0] || null)}
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none file:bg-gold/10 file:text-gold file:border-none file:rounded-lg file:px-3 file:py-1 file:mr-4 file:text-xs file:font-bold file:uppercase"
+                    />
+                  </div>
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                      <div className="w-full border-t border-white/5"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-zinc-900 px-2 text-white/20">Or use URL</span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Video URL (YouTube/Direct)</label>
+                    <input 
+                      type="url" 
+                      value={newVideo.url}
+                      onChange={e => setNewVideo({...newVideo, url: e.target.value})}
+                      placeholder="https://..."
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Title</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={newVideo.title}
+                      onChange={e => setNewVideo({...newVideo, title: e.target.value})}
+                      placeholder="e.g. Wedding Highlights"
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
+                    />
+                  </div>
+                  <button 
+                    type="submit" 
+                    disabled={isUploading}
+                    className="w-full gold-gradient py-3 rounded-xl text-black font-bold uppercase tracking-widest text-sm hover:scale-[1.02] transition-all disabled:opacity-50"
+                  >
+                    {isUploading ? 'Uploading...' : 'Add Video'}
+                  </button>
+                </form>
+              </div>
+            </div>
+            <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4">
+              {videos.map((vid) => (
+                <div key={vid.id} className="bg-zinc-900/50 border border-white/5 p-4 rounded-3xl">
+                  <div className="aspect-video bg-black rounded-xl overflow-hidden mb-4">
+                    {vid.url.includes('youtube.com') || vid.url.includes('youtu.be') ? (
+                      <iframe 
+                        src={`https://www.youtube.com/embed/${vid.url.split('v=')[1] || vid.url.split('/').pop()}`}
+                        className="w-full h-full"
+                        frameBorder="0"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video src={vid.url} controls className="w-full h-full object-cover" />
+                    )}
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-white font-bold text-sm uppercase tracking-widest">{vid.title}</p>
+                    <button 
+                      onClick={() => handleDeleteVideo(vid.id)}
+                      className="text-red-500 hover:text-red-400 p-2"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : activeTab === 'reviews' ? (
+          <div className="space-y-4">
+            {reviews.map((review) => (
+              <div key={review.id} className="bg-zinc-900/50 border border-white/5 p-6 rounded-3xl transition-all">
+                <div className="flex justify-between items-start gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="font-bold text-lg">{review.name}</h3>
+                      <div className="flex gap-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} size={12} className={i < review.rating ? "fill-gold text-gold" : "text-white/10"} />
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-white/70 text-sm italic mb-4">"{review.comment}"</p>
+                    <p className="text-xs text-white/30">{new Date(review.created_at).toLocaleString()}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => handleTogglePublish(review.id, review.published)}
+                      className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${review.published ? 'bg-gold text-black' : 'bg-zinc-800 text-white/50 hover:text-white'}`}
+                    >
+                      {review.published ? 'Published' : 'Draft'}
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteReview(review.id)}
+                      className="bg-red-500/10 text-red-500 p-2 rounded-full hover:bg-red-500 hover:text-white transition-all"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="max-w-md mx-auto">
+            <div className="bg-zinc-900/50 border border-white/5 p-8 rounded-3xl">
+              <h3 className="font-bold text-xl mb-6 flex items-center gap-2">
+                <Lock size={20} className="text-gold" />
+                Change Password
+              </h3>
+              <form onSubmit={handleChangePassword} className="space-y-6">
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">New Password</label>
+                  <input 
+                    type="password" 
+                    required
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-sm focus:border-gold outline-none"
+                  />
+                </div>
+                {passMessage.text && (
+                  <p className={`text-xs text-center ${passMessage.type === 'success' ? 'text-green-500' : 'text-red-500'}`}>
+                    {passMessage.text}
+                  </p>
+                )}
+                <button type="submit" className="w-full gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest text-sm hover:scale-[1.02] transition-all">
+                  Update Password
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 // --- Components ---
 
@@ -177,6 +677,7 @@ const Navbar = ({ lang, setLang }: { lang: Language, setLang: (l: Language) => v
     { name: t.about, href: '#about' },
     { name: t.services, href: '#services' },
     { name: t.gallery, href: '#gallery' },
+    { name: t.videos, href: '#videos' },
     { name: t.testimonials, href: '#testimonials' },
     { name: t.location, href: '#location' },
     { name: t.contact, href: '#contact' },
@@ -476,17 +977,25 @@ const Services = ({ lang }: { lang: Language }) => {
 
 const Gallery = ({ lang }: { lang: Language }) => {
   const t = translations[lang].gallery;
-  const images = [
-    { src: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?q=80&w=2070&auto=format&fit=crop", title: "DJ Performing" },
-    { src: "https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?q=80&w=2070&auto=format&fit=crop", title: "Dance Floor" },
-    { src: "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=2070&auto=format&fit=crop", title: "Wedding Celebration" },
-    { src: "https://images.unsplash.com/photo-1514525253361-bee8718a340b?q=80&w=1974&auto=format&fit=crop", title: "DJ Equipment" },
-    { src: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=2070&auto=format&fit=crop", title: "Event Lighting" },
-    { src: "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=2070&auto=format&fit=crop", title: "Party Atmosphere" },
-  ];
-
+  const [images, setImages] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchGallery = async () => {
+      try {
+        const res = await fetch('/api/gallery');
+        const data = await res.json();
+        setImages(data);
+      } catch (error) {
+        console.error("Failed to fetch gallery", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchGallery();
+  }, []);
 
   const slideVariants = {
     enter: (direction: number) => ({
@@ -554,55 +1063,61 @@ const Gallery = ({ lang }: { lang: Language }) => {
         </motion.div>
 
         <div className="relative h-[400px] md:h-[600px] w-full flex items-center justify-center">
-          <AnimatePresence initial={false} custom={direction}>
-            <motion.div
-              key={currentIndex}
-              custom={direction}
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{
-                x: { type: "spring", stiffness: 300, damping: 30 },
-                opacity: { duration: 0.2 }
-              }}
-              drag="x"
-              dragConstraints={{ left: 0, right: 0 }}
-              dragElastic={1}
-              onDragEnd={(e, { offset, velocity }) => {
-                const swipe = swipePower(offset.x, velocity.x);
+          {isLoading ? (
+            <Loader2 className="text-gold animate-spin w-12 h-12" />
+          ) : images.length > 0 ? (
+            <AnimatePresence initial={false} custom={direction}>
+              <motion.div
+                key={currentIndex}
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{
+                  x: { type: "spring", stiffness: 300, damping: 30 },
+                  opacity: { duration: 0.2 }
+                }}
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={1}
+                onDragEnd={(e, { offset, velocity }) => {
+                  const swipe = swipePower(offset.x, velocity.x);
 
-                if (swipe < -swipeConfidenceThreshold) {
-                  paginate(1);
-                } else if (swipe > swipeConfidenceThreshold) {
-                  paginate(-1);
-                }
-              }}
-              className="absolute w-full h-full"
-            >
-              <div className="relative w-full h-full rounded-3xl overflow-hidden group">
-                <img 
-                  src={images[currentIndex].src} 
-                  alt={images[currentIndex].title} 
-                  className="w-full h-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-8 md:p-12">
-                  <motion.div
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <Camera className="text-gold w-5 h-5" />
-                      <span className="text-gold text-xs font-bold uppercase tracking-[0.2em]">Featured Moment</span>
-                    </div>
-                    <h3 className="text-2xl md:text-4xl font-bold text-white uppercase tracking-wider">{images[currentIndex].title}</h3>
-                  </motion.div>
+                  if (swipe < -swipeConfidenceThreshold) {
+                    paginate(1);
+                  } else if (swipe > swipeConfidenceThreshold) {
+                    paginate(-1);
+                  }
+                }}
+                className="absolute w-full h-full"
+              >
+                <div className="relative w-full h-full rounded-3xl overflow-hidden group">
+                  <img 
+                    src={images[currentIndex].src} 
+                    alt={images[currentIndex].title} 
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-8 md:p-12">
+                    <motion.div
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: 0.2 }}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <Camera className="text-gold w-5 h-5" />
+                        <span className="text-gold text-xs font-bold uppercase tracking-[0.2em]">Featured Moment</span>
+                      </div>
+                      <h3 className="text-2xl md:text-4xl font-bold text-white uppercase tracking-wider">{images[currentIndex].title}</h3>
+                    </motion.div>
+                  </div>
                 </div>
-              </div>
-            </motion.div>
-          </AnimatePresence>
+              </motion.div>
+            </AnimatePresence>
+          ) : (
+            <div className="text-white/20 uppercase tracking-widest">No images in gallery</div>
+          )}
         </div>
 
         {/* Thumbnails/Dots */}
@@ -623,11 +1138,31 @@ const Gallery = ({ lang }: { lang: Language }) => {
   );
 };
 
-const Testimonials = ({ lang }: { lang: Language }) => {
-  const t = translations[lang].testimonials;
+const Videos = ({ lang }: { lang: Language }) => {
+  const t = translations[lang].videos;
+  const [videos, setVideos] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchVideos = async () => {
+      try {
+        const res = await fetch('/api/videos');
+        const data = await res.json();
+        setVideos(data);
+      } catch (error) {
+        console.error("Failed to fetch videos", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchVideos();
+  }, []);
+
+  if (isLoading) return null;
+  if (videos.length === 0) return null;
 
   return (
-    <section id="testimonials" className="py-24 bg-black relative overflow-hidden">
+    <section id="videos" className="py-24 bg-zinc-950">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
@@ -638,42 +1173,231 @@ const Testimonials = ({ lang }: { lang: Language }) => {
         >
           <h2 className="text-4xl md:text-5xl font-bold mb-4">
             {lang === 'en' ? (
-              <>What Our <span className="gold-text-gradient">Clients Say</span></>
+              <>Event <span className="gold-text-gradient">Highlights</span></>
             ) : lang === 'rw' ? (
-              <>Ibyo abakiriya <span className="gold-text-gradient">bacu bavuga</span></>
+              <>Ibyaranze <span className="gold-text-gradient">Ibirori</span></>
             ) : (
-              <>Ce que disent <span className="gold-text-gradient">nos clients</span></>
+              <>Points forts <span className="gold-text-gradient">de l'événement</span></>
             )}
           </h2>
           <p className="text-white/50 max-w-2xl mx-auto">{t.subtitle}</p>
         </motion.div>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {t.items.map((item, index) => (
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {videos.map((vid, index) => (
             <motion.div
-              key={index}
+              key={vid.id}
               initial={{ opacity: 0, scale: 0.9 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              transition={{ delay: index * 0.1, duration: 0.5 }}
-              className="bg-zinc-900/50 border border-gold/10 p-8 rounded-3xl relative group hover:border-gold/30 transition-all duration-500 flex flex-col h-full"
+              transition={{ delay: index * 0.1 }}
+              className="bg-black border border-white/5 rounded-3xl overflow-hidden group hover:border-gold/30 transition-all duration-500"
             >
-              <div className="flex gap-1 mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} size={16} className="fill-gold text-gold" />
-                ))}
+              <div className="aspect-video relative">
+                {vid.url.includes('youtube.com') || vid.url.includes('youtu.be') ? (
+                  <iframe 
+                    src={`https://www.youtube.com/embed/${vid.url.split('v=')[1] || vid.url.split('/').pop()}`}
+                    className="w-full h-full"
+                    frameBorder="0"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video src={vid.url} controls className="w-full h-full object-cover" />
+                )}
               </div>
-              <p className="text-white/80 italic mb-6 leading-relaxed">"{item.text}"</p>
-              <div className="mt-auto">
-                <h4 className="text-gold font-bold text-lg">{item.name}</h4>
-                <p className="text-white/40 text-xs uppercase tracking-widest">{item.event}</p>
-              </div>
-              <div className="absolute top-8 right-8 text-gold/5 opacity-20 group-hover:opacity-40 transition-opacity">
-                <MessageSquare size={64} />
+              <div className="p-6">
+                <h3 className="text-white font-bold uppercase tracking-widest text-sm">{vid.title}</h3>
               </div>
             </motion.div>
           ))}
         </div>
+      </div>
+    </section>
+  );
+};
+
+const Testimonials = ({ lang }: { lang: Language }) => {
+  const t = translations[lang].testimonials;
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [newReview, setNewReview] = useState({ name: '', rating: 5, comment: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  useEffect(() => {
+    fetchReviews();
+  }, []);
+
+  const fetchReviews = async () => {
+    try {
+      const res = await fetch('/api/reviews');
+      const data = await res.json();
+      setReviews(data);
+    } catch (error) {
+      console.error("Failed to fetch reviews", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmitReview = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/reviews', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newReview)
+      });
+      if (res.ok) {
+        setSubmitSuccess(true);
+        setNewReview({ name: '', rating: 5, comment: '' });
+        setTimeout(() => {
+          setSubmitSuccess(false);
+          setShowForm(false);
+        }, 3000);
+      }
+    } catch (error) {
+      console.error("Failed to submit review", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <section id="testimonials" className="py-24 bg-black relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="flex flex-col md:flex-row justify-between items-center mb-16 gap-8"
+        >
+          <div className="text-center md:text-left">
+            <h2 className="text-4xl md:text-5xl font-bold mb-4">
+              {lang === 'en' ? (
+                <>What Our <span className="gold-text-gradient">Clients Say</span></>
+              ) : lang === 'rw' ? (
+                <>Ibyo abakiriya <span className="gold-text-gradient">bacu bavuga</span></>
+              ) : (
+                <>Ce que disent <span className="gold-text-gradient">nos clients</span></>
+              )}
+            </h2>
+            <p className="text-white/50 max-w-2xl">{t.subtitle}</p>
+          </div>
+          <button 
+            onClick={() => setShowForm(!showForm)}
+            className="gold-gradient px-8 py-4 rounded-full text-black font-bold uppercase tracking-widest text-sm hover:scale-110 transition-transform"
+          >
+            {showForm ? 'Close Form' : 'Leave a Review'}
+          </button>
+        </motion.div>
+
+        <AnimatePresence>
+          {showForm && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-16 overflow-hidden"
+            >
+              <div className="bg-zinc-900/50 border border-gold/20 p-8 rounded-3xl max-w-2xl mx-auto">
+                {submitSuccess ? (
+                  <div className="text-center py-8">
+                    <CheckCircle2 className="text-gold mx-auto mb-4" size={48} />
+                    <h3 className="text-xl font-bold text-white mb-2">Thank You!</h3>
+                    <p className="text-white/50">Your review has been submitted and is pending approval.</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmitReview} className="space-y-6">
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Your Name</label>
+                        <input 
+                          type="text" 
+                          required
+                          value={newReview.name}
+                          onChange={e => setNewReview({...newReview, name: e.target.value})}
+                          className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Rating</label>
+                        <div className="flex gap-2 py-2">
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <button 
+                              key={star}
+                              type="button"
+                              onClick={() => setNewReview({...newReview, rating: star})}
+                              className="focus:outline-none"
+                            >
+                              <Star 
+                                size={24} 
+                                className={star <= newReview.rating ? "fill-gold text-gold" : "text-white/10 hover:text-white/30"} 
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">Your Experience</label>
+                      <textarea 
+                        required
+                        rows={4}
+                        value={newReview.comment}
+                        onChange={e => setNewReview({...newReview, comment: e.target.value})}
+                        className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none text-white resize-none"
+                      />
+                    </div>
+                    <button 
+                      type="submit" 
+                      disabled={isSubmitting}
+                      className="w-full gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest text-sm hover:scale-[1.02] transition-all disabled:opacity-50"
+                    >
+                      {isSubmitting ? 'Submitting...' : 'Post Review'}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {isLoading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="text-gold animate-spin w-10 h-10" />
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-3 gap-8">
+            {(reviews.length > 0 ? reviews : t.items).map((item, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, scale: 0.9 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1, duration: 0.5 }}
+                className="bg-zinc-900/50 border border-gold/10 p-8 rounded-3xl relative group hover:border-gold/30 transition-all duration-500 flex flex-col h-full"
+              >
+                <div className="flex gap-1 mb-4">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} size={16} className={i < (item.rating || 5) ? "fill-gold text-gold" : "text-white/10"} />
+                  ))}
+                </div>
+                <p className="text-white/80 italic mb-6 leading-relaxed">"{item.comment || item.text}"</p>
+                <div className="mt-auto">
+                  <h4 className="text-gold font-bold text-lg">{item.name}</h4>
+                  <p className="text-white/40 text-xs uppercase tracking-widest">{item.event || 'Client'}</p>
+                </div>
+                <div className="absolute top-8 right-8 text-gold/5 opacity-20 group-hover:opacity-40 transition-opacity">
+                  <MessageSquare size={64} />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -837,7 +1561,7 @@ const Contact = ({ lang }: { lang: Language }) => {
     setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
   };
 
-  const handleSubmit = (type: 'whatsapp' | 'email') => {
+  const handleSubmit = async (type: 'whatsapp' | 'email') => {
     const newErrors = {
       name: validateField('name', formData.name),
       phone: validateField('phone', formData.phone),
@@ -857,6 +1581,17 @@ ${t.name}: ${formData.name}
 ${t.phone}: ${formData.phone}
 ${t.date}: ${formData.date}
 ${t.message}: ${formData.message}`;
+
+    // Save to database
+    try {
+      await fetch('/api/bookings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+    } catch (error) {
+      console.error("Failed to save booking to DB", error);
+    }
 
     if (type === 'whatsapp') {
       const whatsappUrl = `https://wa.me/250798628085?text=${encodeURIComponent(message)}`;
@@ -1181,6 +1916,12 @@ const Footer = ({ lang }: { lang: Language }) => {
           >
             <MessageSquare size={20} />
           </a>
+          <button 
+            onClick={() => window.dispatchEvent(new CustomEvent('open-admin'))}
+            className="text-white/10 hover:text-gold transition-colors"
+          >
+            <Settings size={20} />
+          </button>
         </div>
       </div>
     </footer>
@@ -1189,6 +1930,47 @@ const Footer = ({ lang }: { lang: Language }) => {
 
 export default function App() {
   const [lang, setLang] = useState<Language>('en');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+
+  useEffect(() => {
+    const handleOpenAdmin = () => setShowLogin(true);
+    window.addEventListener('open-admin', handleOpenAdmin);
+    return () => window.removeEventListener('open-admin', handleOpenAdmin);
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsAdmin(true);
+        setShowLogin(false);
+        setPassword('');
+      } else {
+        setLoginError(data.error);
+      }
+    } catch (error) {
+      setLoginError("Login failed");
+    }
+  };
+
+  if (isAdmin) {
+    return (
+      <div className="bg-black min-h-screen">
+        <Navbar lang={lang} setLang={setLang} />
+        <AdminDashboard onLogout={() => setIsAdmin(false)} />
+      </div>
+    );
+  }
 
   return (
     <motion.div 
@@ -1202,11 +1984,59 @@ export default function App() {
       <About lang={lang} />
       <Services lang={lang} />
       <Gallery lang={lang} />
+      <Videos lang={lang} />
       <Testimonials lang={lang} />
       <Location lang={lang} />
       <Contact lang={lang} />
       <Footer lang={lang} />
       <AIChatbot lang={lang} />
+
+      {/* Login Modal */}
+      <AnimatePresence>
+        {showLogin && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowLogin(false)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-zinc-900 border border-gold/30 p-8 rounded-3xl w-full max-w-md shadow-2xl"
+            >
+              <div className="text-center mb-8">
+                <div className="bg-gold/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Lock className="text-gold" size={32} />
+                </div>
+                <h2 className="text-2xl font-bold text-white">Admin Access</h2>
+                <p className="text-white/40 text-sm mt-2">Enter your password to continue</p>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div>
+                  <input 
+                    type="password" 
+                    required
+                    autoFocus
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    placeholder="Password"
+                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-center text-lg tracking-widest focus:border-gold outline-none text-white"
+                  />
+                  {loginError && <p className="text-red-500 text-xs mt-2 text-center">{loginError}</p>}
+                </div>
+                <button type="submit" className="w-full gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest hover:scale-[1.02] transition-all">
+                  Login
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
