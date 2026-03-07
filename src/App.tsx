@@ -29,7 +29,8 @@ import {
   Plus,
   LogOut,
   Eye,
-  Lock
+  Lock,
+  Mail
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
@@ -51,6 +52,14 @@ const AdminDashboard = ({ onLogout }: { onLogout: () => void }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [smtpSettings, setSmtpSettings] = useState({
+    host: '',
+    port: 587,
+    user: '',
+    pass: '',
+    secure: false
+  });
+  const [smtpMessage, setSmtpMessage] = useState({ text: '', type: '' });
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'bookings' | 'gallery' | 'videos' | 'reviews' | 'settings'>('bookings');
   const [passMessage, setPassMessage] = useState({ text: '', type: '' });
@@ -62,20 +71,30 @@ const AdminDashboard = ({ onLogout }: { onLogout: () => void }) => {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [bookingsRes, galleryRes, videosRes, reviewsRes] = await Promise.all([
+      const [bookingsRes, galleryRes, videosRes, reviewsRes, smtpRes] = await Promise.all([
         fetch('/api/admin/bookings'),
         fetch('/api/gallery'),
         fetch('/api/videos'),
-        fetch('/api/admin/reviews')
+        fetch('/api/admin/reviews'),
+        fetch('/api/admin/smtp-settings')
       ]);
       const bookingsData = await bookingsRes.json();
       const galleryData = await galleryRes.json();
       const videosData = await videosRes.json();
       const reviewsData = await reviewsRes.json();
+      const smtpData = await smtpRes.json();
+      
       setBookings(bookingsData);
       setGallery(galleryData);
       setVideos(videosData);
       setReviews(reviewsData);
+      setSmtpSettings({
+        host: smtpData.host || '',
+        port: smtpData.port || 587,
+        user: smtpData.auth?.user || '',
+        pass: '', // Don't show password for security
+        secure: smtpData.secure || false
+      });
     } catch (error) {
       console.error("Failed to fetch admin data", error);
     } finally {
@@ -221,6 +240,26 @@ const AdminDashboard = ({ onLogout }: { onLogout: () => void }) => {
       }
     } catch (error) {
       setPassMessage({ text: 'An error occurred.', type: 'error' });
+    }
+  };
+
+  const handleUpdateSmtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSmtpMessage({ text: '', type: '' });
+    try {
+      const res = await fetch('/api/admin/smtp-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(smtpSettings)
+      });
+      if (res.ok) {
+        setSmtpMessage({ text: 'SMTP settings updated successfully!', type: 'success' });
+        setSmtpSettings(prev => ({ ...prev, pass: '' }));
+      } else {
+        setSmtpMessage({ text: 'Failed to update SMTP settings.', type: 'error' });
+      }
+    } catch (error) {
+      setSmtpMessage({ text: 'An error occurred.', type: 'error' });
     }
   };
 
@@ -498,7 +537,7 @@ const AdminDashboard = ({ onLogout }: { onLogout: () => void }) => {
             ))}
           </div>
         ) : (
-          <div className="max-w-md mx-auto">
+          <div className="grid lg:grid-cols-2 gap-8">
             <div className="bg-zinc-900/50 border border-white/5 p-8 rounded-3xl">
               <h3 className="font-bold text-xl mb-6 flex items-center gap-2">
                 <Lock size={20} className="text-gold" />
@@ -523,6 +562,75 @@ const AdminDashboard = ({ onLogout }: { onLogout: () => void }) => {
                 )}
                 <button type="submit" className="w-full gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest text-sm hover:scale-[1.02] transition-all">
                   Update Password
+                </button>
+              </form>
+            </div>
+
+            <div className="bg-zinc-900/50 border border-white/5 p-8 rounded-3xl">
+              <h3 className="font-bold text-xl mb-6 flex items-center gap-2">
+                <Mail size={20} className="text-gold" />
+                Mail Settings (SMTP)
+              </h3>
+              <form onSubmit={handleUpdateSmtp} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">SMTP Host</label>
+                    <input 
+                      type="text" 
+                      value={smtpSettings.host}
+                      onChange={e => setSmtpSettings({...smtpSettings, host: e.target.value})}
+                      placeholder="smtp.gmail.com"
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">SMTP Port</label>
+                    <input 
+                      type="number" 
+                      value={smtpSettings.port}
+                      onChange={e => setSmtpSettings({...smtpSettings, port: parseInt(e.target.value)})}
+                      placeholder="587"
+                      className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">SMTP User (Email)</label>
+                  <input 
+                    type="email" 
+                    value={smtpSettings.user}
+                    onChange={e => setSmtpSettings({...smtpSettings, user: e.target.value})}
+                    placeholder="your-email@gmail.com"
+                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">SMTP Password (App Password)</label>
+                  <input 
+                    type="password" 
+                    value={smtpSettings.pass}
+                    onChange={e => setSmtpSettings({...smtpSettings, pass: e.target.value})}
+                    placeholder="Leave empty to keep current"
+                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
+                  />
+                </div>
+                <div className="flex items-center gap-3 py-2">
+                  <input 
+                    type="checkbox" 
+                    id="smtp-secure"
+                    checked={smtpSettings.secure}
+                    onChange={e => setSmtpSettings({...smtpSettings, secure: e.target.checked})}
+                    className="w-4 h-4 accent-gold"
+                  />
+                  <label htmlFor="smtp-secure" className="text-xs uppercase tracking-widest text-white/60">Use SSL/TLS (Secure)</label>
+                </div>
+                {smtpMessage.text && (
+                  <p className={`text-xs text-center ${smtpMessage.type === 'success' ? 'text-green-500' : 'text-red-500'}`}>
+                    {smtpMessage.text}
+                  </p>
+                )}
+                <button type="submit" className="w-full gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest text-sm hover:scale-[1.02] transition-all">
+                  Update Mail Settings
                 </button>
               </form>
             </div>
@@ -1932,7 +2040,8 @@ export default function App() {
   const [lang, setLang] = useState<Language>('en');
   const [isAdmin, setIsAdmin] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
-  const [password, setPassword] = useState('');
+  const [isWaitingApproval, setIsWaitingApproval] = useState(false);
+  const [requestId, setRequestId] = useState<string | null>(null);
   const [loginError, setLoginError] = useState('');
 
   useEffect(() => {
@@ -1941,25 +2050,50 @@ export default function App() {
     return () => window.removeEventListener('open-admin', handleOpenAdmin);
   }, []);
 
+  useEffect(() => {
+    let pollInterval: any;
+    if (isWaitingApproval && requestId) {
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/admin/poll-login/${requestId}`);
+          const data = await res.json();
+          if (data.status === 'approved') {
+            setIsAdmin(true);
+            setShowLogin(false);
+            setIsWaitingApproval(false);
+            setRequestId(null);
+            clearInterval(pollInterval);
+          } else if (data.status === 'rejected') {
+            setLoginError('Login request was rejected.');
+            setIsWaitingApproval(false);
+            setRequestId(null);
+            clearInterval(pollInterval);
+          }
+        } catch (error) {
+          console.error("Polling error", error);
+        }
+      }, 3000);
+    }
+    return () => clearInterval(pollInterval);
+  }, [isWaitingApproval, requestId]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     try {
-      const res = await fetch('/api/admin/login', {
+      const res = await fetch('/api/admin/request-login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password })
+        headers: { 'Content-Type': 'application/json' }
       });
       const data = await res.json();
       if (data.success) {
-        setIsAdmin(true);
-        setShowLogin(false);
-        setPassword('');
+        setIsWaitingApproval(true);
+        setRequestId(data.requestId);
       } else {
-        setLoginError(data.error);
+        setLoginError(data.error || 'Failed to request login.');
       }
     } catch (error) {
-      setLoginError("Login failed");
+      setLoginError('An error occurred. Please try again.');
     }
   };
 
@@ -2010,28 +2144,36 @@ export default function App() {
             >
               <div className="text-center mb-8">
                 <div className="bg-gold/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Lock className="text-gold" size={32} />
+                  {isWaitingApproval ? (
+                    <Loader2 className="text-gold animate-spin" size={32} />
+                  ) : (
+                    <Lock className="text-gold" size={32} />
+                  )}
                 </div>
                 <h2 className="text-2xl font-bold text-white">Admin Access</h2>
-                <p className="text-white/40 text-sm mt-2">Enter your password to continue</p>
+                <p className="text-white/40 text-sm mt-2">
+                  {isWaitingApproval 
+                    ? "Waiting for admin approval..." 
+                    : "Click the button below to request access"}
+                </p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-6">
-                <div>
-                  <input 
-                    type="password" 
-                    required
-                    autoFocus
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="Password"
-                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-4 text-center text-lg tracking-widest focus:border-gold outline-none text-white"
-                  />
-                  {loginError && <p className="text-red-500 text-xs mt-2 text-center">{loginError}</p>}
-                </div>
-                <button type="submit" className="w-full gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest hover:scale-[1.02] transition-all">
-                  Login
-                </button>
+                {loginError && <p className="text-red-500 text-xs mt-2 text-center">{loginError}</p>}
+                {!isWaitingApproval && (
+                  <button type="submit" className="w-full gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest hover:scale-[1.02] transition-all">
+                    Request Login Approval
+                  </button>
+                )}
+                {isWaitingApproval && (
+                  <button 
+                    type="button" 
+                    onClick={() => setIsWaitingApproval(false)}
+                    className="w-full bg-white/5 py-4 rounded-xl text-white/40 font-bold uppercase tracking-widest hover:bg-white/10 transition-all"
+                  >
+                    Cancel Request
+                  </button>
+                )}
               </form>
             </motion.div>
           </div>

@@ -6,6 +6,8 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import multer from "multer";
 import fs from "fs";
+import nodemailer from "nodemailer";
+import { v4 as uuidv4 } from "uuid";
 
 dotenv.config();
 
@@ -74,6 +76,12 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS login_requests (
+    id TEXT PRIMARY KEY,
+    status TEXT DEFAULT 'pending', -- pending, approved, rejected
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Seed gallery if empty
@@ -96,6 +104,25 @@ const adminPass = db.prepare("SELECT value FROM settings WHERE key = 'admin_pass
 if (!adminPass) {
   db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run('admin_password', process.env.ADMIN_PASSWORD || 'admin123');
 }
+
+// Helper to get SMTP config from DB or Env
+const getSmtpConfig = () => {
+  const host = db.prepare("SELECT value FROM settings WHERE key = 'smtp_host'").get() as { value: string } | undefined;
+  const port = db.prepare("SELECT value FROM settings WHERE key = 'smtp_port'").get() as { value: string } | undefined;
+  const user = db.prepare("SELECT value FROM settings WHERE key = 'smtp_user'").get() as { value: string } | undefined;
+  const pass = db.prepare("SELECT value FROM settings WHERE key = 'smtp_pass'").get() as { value: string } | undefined;
+  const secure = db.prepare("SELECT value FROM settings WHERE key = 'smtp_secure'").get() as { value: string } | undefined;
+
+  return {
+    host: (host?.value || process.env.SMTP_HOST || "smtp.gmail.com").replace(/^https?:\/\//, '').split('/')[0],
+    port: parseInt(port?.value || process.env.SMTP_PORT || "587"),
+    secure: (secure?.value || process.env.SMTP_SECURE) === "true",
+    auth: {
+      user: user?.value || process.env.SMTP_USER,
+      pass: pass?.value || process.env.SMTP_PASS,
+    },
+  };
+};
 
 async function startServer() {
   const app = express();
@@ -148,8 +175,83 @@ async function startServer() {
     }
   });
 
-  // Admin Routes (Simple Auth)
+  // Admin Routes (Email Approval Auth)
+  app.post("/api/admin/request-login", async (req, res) => {
+    const requestId = uuidv4();
+    const adminEmail = process.env.ADMIN_EMAIL || "079bizimanadjemmy@gmail.com";
+    const appUrl = process.env.APP_URL || `http://localhost:3000`;
+
+    try {
+      db.prepare("INSERT INTO login_requests (id) VALUES (?)").run(requestId);
+
+      const approveUrl = `${appUrl}/api/admin/approve?id=${requestId}&status=yes`;
+      const rejectUrl = `${appUrl}/api/admin/approve?id=${requestId}&status=no`;
+
+      const smtpConfig = getSmtpConfig();
+      const transporter = nodemailer.createTransport(smtpConfig);
+
+      await transporter.sendMail({
+        from: `"DJ'S SERVICES Admin" <${smtpConfig.auth.user}>`,
+        to: adminEmail,
+        subject: "Login Approval Request",
+        html: `
+          <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+            <h2 style="color: #D4AF37;">Login Approval Request</h2>
+            <p>A login attempt was made for the Admin Dashboard.</p>
+            <p>Do you approve this login?</p>
+            <div style="margin-top: 20px;">
+              <a href="${approveUrl}" style="background-color: #22c55e; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin-right: 10px;">YES, Approve</a>
+              <a href="${rejectUrl}" style="background-color: #ef4444; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">NO, Reject</a>
+            </div>
+          </div>
+        `,
+      });
+
+      res.json({ success: true, requestId });
+    } catch (error) {
+      console.error("Failed to send approval email", error);
+      res.status(500).json({ error: "Failed to send approval email. Please check your Mail Settings in the Admin Dashboard." });
+    }
+  });
+
+  app.get("/api/admin/poll-login/:id", (req, res) => {
+    const { id } = req.params;
+    const request = db.prepare("SELECT status FROM login_requests WHERE id = ?").get() as { status: string } | undefined;
+    
+    if (!request) {
+      return res.status(404).json({ error: "Request not found" });
+    }
+
+    if (request.status === 'approved') {
+      res.json({ status: 'approved', token: "mock-jwt-token" });
+    } else if (request.status === 'rejected') {
+      res.json({ status: 'rejected' });
+    } else {
+      res.json({ status: 'pending' });
+    }
+  });
+
+  app.get("/api/admin/approve", (req, res) => {
+    const { id, status } = req.query;
+    const newStatus = status === 'yes' ? 'approved' : 'rejected';
+
+    try {
+      db.prepare("UPDATE login_requests SET status = ? WHERE id = ?").run(newStatus, id);
+      res.send(`
+        <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+          <h1 style="color: ${newStatus === 'approved' ? '#22c55e' : '#ef4444'}">
+            Login ${newStatus === 'approved' ? 'Approved' : 'Rejected'}
+          </h1>
+          <p>You can close this window now.</p>
+        </div>
+      `);
+    } catch (error) {
+      res.status(500).send("Failed to update request status");
+    }
+  });
+
   app.post("/api/admin/login", (req, res) => {
+    // Legacy login for backward compatibility or if password is still needed
     const { password } = req.body;
     const storedPass = db.prepare("SELECT value FROM settings WHERE key = 'admin_password'").get() as { value: string };
     if (password === storedPass.value) {
@@ -166,6 +268,26 @@ async function startServer() {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update password" });
+    }
+  });
+
+  app.get("/api/admin/smtp-settings", (req, res) => {
+    const config = getSmtpConfig();
+    res.json(config);
+  });
+
+  app.post("/api/admin/smtp-settings", (req, res) => {
+    const { host, port, user, pass, secure } = req.body;
+    try {
+      const upsert = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
+      upsert.run('smtp_host', host);
+      upsert.run('smtp_port', port.toString());
+      upsert.run('smtp_user', user);
+      if (pass) upsert.run('smtp_pass', pass);
+      upsert.run('smtp_secure', secure ? "true" : "false");
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update SMTP settings" });
     }
   });
 
