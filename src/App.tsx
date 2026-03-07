@@ -8,6 +8,7 @@ import {
   MessageSquare, 
   Menu, 
   X, 
+  ChevronLeft,
   ChevronRight,
   Star,
   Camera,
@@ -19,20 +20,26 @@ import {
   Bot,
   Loader2,
   User,
-  Sparkles
+  Sparkles,
+  MapPin,
+  CheckCircle2,
+  ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { GoogleGenAI } from "@google/genai";
+import Markdown from 'react-markdown';
+import { Language, translations } from './translations';
 
 // --- AI Service ---
 const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 // --- Components ---
 
-const AIChatbot = () => {
+const AIChatbot = ({ lang }: { lang: Language }) => {
+  const t = translations[lang].ai;
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<{role: 'user' | 'bot', text: string}[]>([
-    { role: 'bot', text: "Hello! I'm your AI assistant for DJ'S SERVICES & BUSINESS. How can I help you plan your perfect event today?" }
+    { role: 'bot', text: t.welcome }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -58,15 +65,15 @@ const AIChatbot = () => {
         model,
         contents: userMessage,
         config: {
-          systemInstruction: "You are a professional AI assistant for 'DJ'S SERVICES & BUSINESS', a luxury DJ service for weddings and events. Your goal is to be helpful, elegant, and professional. You should answer questions about our services (Wedding DJ, Ceremony DJ, Birthday Parties, etc.), our DJs (DJ Emmy & DJ Peter), and encourage users to book via the contact form. Keep responses concise and high-end. If asked about pricing, suggest they contact us for a custom quote.",
+          systemInstruction: `You are a professional AI assistant for 'DJ'S SERVICES & BUSINESS', a luxury DJ service for weddings and events. Your goal is to be helpful, elegant, and professional. You should answer questions about our services (Wedding DJ, Ceremony DJ, Birthday Parties, etc.), our DJs (DJ Emmy & DJ Peter), and encourage users to book via the contact form. Keep responses concise and high-end. If asked about pricing, suggest they contact us for a custom quote. Respond in the language of the user's query (English, Kinyarwanda, or French). Current website language is ${lang}.`,
         }
       });
 
-      const botResponse = response.text || "I'm sorry, I couldn't process that. Please contact our team directly for more information.";
+      const botResponse = response.text || t.error;
       setMessages(prev => [...prev, { role: 'bot', text: botResponse }]);
     } catch (error) {
       console.error("AI Error:", error);
-      setMessages(prev => [...prev, { role: 'bot', text: "I'm having a little trouble connecting right now. Please feel free to call us directly!" }]);
+      setMessages(prev => [...prev, { role: 'bot', text: t.error }]);
     } finally {
       setIsLoading(false);
     }
@@ -86,7 +93,7 @@ const AIChatbot = () => {
             <div className="gold-gradient p-4 flex justify-between items-center">
               <div className="flex items-center gap-2 text-black">
                 <Bot size={24} />
-                <span className="font-bold uppercase tracking-widest text-sm">AI Event Assistant</span>
+                <span className="font-bold uppercase tracking-widest text-sm">{t.assistant}</span>
               </div>
               <button onClick={() => setIsOpen(false)} className="text-black hover:rotate-90 transition-transform">
                 <X size={20} />
@@ -102,7 +109,9 @@ const AIChatbot = () => {
                       ? 'bg-gold text-black rounded-tr-none' 
                       : 'bg-zinc-900 text-white border border-white/5 rounded-tl-none'
                   }`}>
-                    {msg.text}
+                    <div className="markdown-body prose prose-invert prose-sm max-w-none">
+                      <Markdown>{msg.text}</Markdown>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -123,7 +132,7 @@ const AIChatbot = () => {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                  placeholder="Ask about our services..."
+                  placeholder={t.placeholder}
                   className="flex-1 bg-black border border-white/10 rounded-full px-4 py-2 text-sm text-white focus:border-gold outline-none"
                 />
                 <button 
@@ -152,7 +161,8 @@ const AIChatbot = () => {
   );
 };
 
-const Navbar = () => {
+const Navbar = ({ lang, setLang }: { lang: Language, setLang: (l: Language) => void }) => {
+  const t = translations[lang].nav;
   const [isOpen, setIsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -163,11 +173,19 @@ const Navbar = () => {
   }, []);
 
   const navLinks = [
-    { name: 'Home', href: '#home' },
-    { name: 'About', href: '#about' },
-    { name: 'Services', href: '#services' },
-    { name: 'Gallery', href: '#gallery' },
-    { name: 'Contact', href: '#contact' },
+    { name: t.home, href: '#home' },
+    { name: t.about, href: '#about' },
+    { name: t.services, href: '#services' },
+    { name: t.gallery, href: '#gallery' },
+    { name: t.testimonials, href: '#testimonials' },
+    { name: t.location, href: '#location' },
+    { name: t.contact, href: '#contact' },
+  ];
+
+  const languages: { code: Language, name: string }[] = [
+    { code: 'en', name: 'EN' },
+    { code: 'rw', name: 'RW' },
+    { code: 'fr', name: 'FR' },
   ];
 
   return (
@@ -181,7 +199,7 @@ const Navbar = () => {
           
           {/* Desktop Menu */}
           <div className="hidden md:block">
-            <div className="ml-10 flex items-baseline space-x-8">
+            <div className="ml-10 flex items-center space-x-8">
               {navLinks.map((link) => (
                 <a
                   key={link.name}
@@ -191,17 +209,42 @@ const Navbar = () => {
                   {link.name}
                 </a>
               ))}
+              
+              {/* Language Switcher */}
+              <div className="flex items-center gap-2 border-l border-white/10 pl-8">
+                {languages.map((l) => (
+                  <button
+                    key={l.code}
+                    onClick={() => setLang(l.code)}
+                    className={`text-[10px] font-bold px-2 py-1 rounded transition-all ${lang === l.code ? 'bg-gold text-black' : 'text-white/40 hover:text-white'}`}
+                  >
+                    {l.name}
+                  </button>
+                ))}
+              </div>
+
               <a 
                 href="#contact" 
                 className="gold-gradient px-6 py-2 rounded-full text-black font-bold text-sm uppercase tracking-widest hover:scale-105 transition-transform"
               >
-                Book Now
+                {t.bookNow}
               </a>
             </div>
           </div>
 
           {/* Mobile menu button */}
-          <div className="md:hidden">
+          <div className="md:hidden flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              {languages.map((l) => (
+                <button
+                  key={l.code}
+                  onClick={() => setLang(l.code)}
+                  className={`text-[10px] font-bold px-2 py-1 rounded transition-all ${lang === l.code ? 'bg-gold text-black' : 'text-white/40'}`}
+                >
+                  {l.name}
+                </button>
+              ))}
+            </div>
             <button
               onClick={() => setIsOpen(!isOpen)}
               className="text-gold p-2"
@@ -232,6 +275,15 @@ const Navbar = () => {
                   {link.name}
                 </a>
               ))}
+              <div className="px-3 py-6">
+                <a 
+                  href="#contact" 
+                  onClick={() => setIsOpen(false)}
+                  className="gold-gradient block w-full text-center py-4 rounded-xl text-black font-bold uppercase tracking-widest"
+                >
+                  {t.bookNow}
+                </a>
+              </div>
             </div>
           </motion.div>
         )}
@@ -240,7 +292,9 @@ const Navbar = () => {
   );
 };
 
-const Hero = () => {
+
+const Hero = ({ lang }: { lang: Language }) => {
+  const t = translations[lang].hero;
   return (
     <section id="home" className="relative h-screen flex items-center justify-center overflow-hidden">
       {/* Background Image with Overlay */}
@@ -263,29 +317,29 @@ const Hero = () => {
           <div className="flex justify-center mb-6">
             <div className="bg-gold/10 border border-gold/30 px-4 py-1 rounded-full flex items-center gap-2 backdrop-blur-sm">
               <Sparkles size={14} className="text-gold animate-pulse" />
-              <span className="text-[10px] text-gold font-bold uppercase tracking-[0.2em]">AI-Powered Entertainment</span>
+              <span className="text-[10px] text-gold font-bold uppercase tracking-[0.2em]">{t.aiPowered}</span>
             </div>
           </div>
-          <span className="text-gold tracking-[0.5em] uppercase text-sm font-bold mb-4 block">Weddings • Ceremonies • Events</span>
+          <span className="text-gold tracking-[0.5em] uppercase text-sm font-bold mb-4 block">{t.subtitle}</span>
           <h1 className="text-5xl md:text-8xl font-bold mb-6 tracking-tighter leading-tight">
             DJ'S SERVICES <br />
             <span className="gold-text-gradient">& BUSINESS</span>
           </h1>
           <p className="text-xl md:text-2xl text-white/70 mb-10 font-light max-w-2xl mx-auto">
-            Professional DJ for Weddings, Ceremonies and Elite Events. Creating unforgettable experiences through sound.
+            {t.description}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a 
               href="#contact" 
               className="gold-gradient px-10 py-4 rounded-full text-black font-bold text-lg uppercase tracking-widest hover:shadow-[0_0_30px_rgba(212,175,55,0.4)] transition-all"
             >
-              Book Now
+              {translations[lang].nav.bookNow}
             </a>
             <a 
               href="#contact" 
               className="border border-gold/50 px-10 py-4 rounded-full text-gold font-bold text-lg uppercase tracking-widest hover:bg-gold/10 transition-all"
             >
-              Contact DJ
+              {t.contactDJ}
             </a>
           </div>
         </motion.div>
@@ -303,17 +357,19 @@ const Hero = () => {
   );
 };
 
-const About = () => {
+const About = ({ lang }: { lang: Language }) => {
+  const t = translations[lang].about;
   return (
     <section id="about" className="py-24 bg-black relative overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid md:grid-cols-2 gap-16 items-center">
-          <motion.div
-            initial={{ opacity: 0, x: -50 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            className="relative"
-          >
+        <motion.div 
+          initial={{ opacity: 0, y: 40 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="grid md:grid-cols-2 gap-16 items-center"
+        >
+          <div className="relative">
             <div className="absolute -top-4 -left-4 w-24 h-24 border-t-2 border-l-2 border-gold"></div>
             <div className="absolute -bottom-4 -right-4 w-24 h-24 border-b-2 border-r-2 border-gold"></div>
             <img 
@@ -322,70 +378,61 @@ const About = () => {
               className="rounded-lg shadow-2xl grayscale hover:grayscale-0 transition-all duration-700"
               referrerPolicy="no-referrer"
             />
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-          >
+          <div>
             <h2 className="text-4xl md:text-5xl font-bold mb-8">
-              About <span className="gold-text-gradient">DJ'S SERVICES</span>
+              {t.title.split('DJ\'S SERVICES')[0]} <span className="gold-text-gradient">DJ'S SERVICES</span>
             </h2>
             <div className="space-y-6 text-white/70 text-lg leading-relaxed">
-              <p>
-                DJ'S SERVICES & BUSINESS is a professional DJ service provider known for creating unforgettable experiences at weddings, ceremonies, and special events.
-              </p>
-              <p>
-                With professional sound equipment and excellent music selection, <span className="text-gold font-bold">DJ EMMY & DJ PETER</span> keep the dance floor alive and guests entertained throughout the night.
-              </p>
-              <p>
-                We believe every event is unique. Our mission is to blend your personal style with our professional expertise to create a seamless, high-energy atmosphere that resonates with every guest.
-              </p>
+              <p>{t.p1}</p>
+              <p>{t.p2}</p>
+              <p>{t.p3}</p>
             </div>
             
             <div className="mt-10 grid grid-cols-2 gap-8">
               <div>
                 <h4 className="text-gold text-3xl font-bold">10+</h4>
-                <p className="text-white/50 uppercase text-xs tracking-widest mt-1">Years Experience</p>
+                <p className="text-white/50 uppercase text-xs tracking-widest mt-1">{t.yearsExp}</p>
               </div>
               <div>
                 <h4 className="text-gold text-3xl font-bold">500+</h4>
-                <p className="text-white/50 uppercase text-xs tracking-widest mt-1">Events Completed</p>
+                <p className="text-white/50 uppercase text-xs tracking-widest mt-1">{t.eventsCompleted}</p>
               </div>
             </div>
-          </motion.div>
-        </div>
+          </div>
+        </motion.div>
       </div>
     </section>
   );
 };
 
-const Services = () => {
+const Services = ({ lang }: { lang: Language }) => {
+  const t = translations[lang].services;
   const services = [
     {
-      title: "Wedding DJ",
-      description: "Elegant music curation for your special day, from the first dance to the final party anthem.",
+      title: t.wedding.title,
+      description: t.wedding.desc,
       icon: <Heart className="w-10 h-10 text-gold" />,
     },
     {
-      title: "Ceremony DJ",
-      description: "Perfectly timed audio and background music for a flawless and emotional ceremony experience.",
+      title: t.ceremony.title,
+      description: t.ceremony.desc,
       icon: <Mic2 className="w-10 h-10 text-gold" />,
     },
     {
-      title: "Birthday Parties",
-      description: "High-energy sets tailored to your favorite genres to make your birthday celebration legendary.",
+      title: t.birthday.title,
+      description: t.birthday.desc,
       icon: <PartyPopper className="w-10 h-10 text-gold" />,
     },
     {
-      title: "Corporate Events",
-      description: "Professional entertainment solutions for galas, product launches, and company celebrations.",
+      title: t.corporate.title,
+      description: t.corporate.desc,
       icon: <Briefcase className="w-10 h-10 text-gold" />,
     },
     {
-      title: "Private Parties",
-      description: "Exclusive DJ services for intimate gatherings, anniversaries, and luxury home events.",
+      title: t.private.title,
+      description: t.private.desc,
       icon: <Star className="w-10 h-10 text-gold" />,
     },
   ];
@@ -393,10 +440,16 @@ const Services = () => {
   return (
     <section id="services" className="py-24 bg-zinc-950">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">Our <span className="gold-text-gradient">Elite Services</span></h2>
-          <p className="text-white/50 max-w-2xl mx-auto">Tailored entertainment solutions designed to elevate your event to the next level of luxury.</p>
-        </div>
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">{t.title.split('Elite Services')[0]} <span className="gold-text-gradient">Elite Services</span></h2>
+          <p className="text-white/50 max-w-2xl mx-auto">{t.subtitle}</p>
+        </motion.div>
 
         <div className="grid md:grid-cols-3 gap-8">
           {services.map((service, index) => (
@@ -405,7 +458,7 @@ const Services = () => {
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ delay: index * 0.1 }}
+              transition={{ delay: index * 0.1, duration: 0.5 }}
               className="bg-black border border-white/5 p-8 rounded-2xl hover:border-gold/50 transition-all duration-500 group"
             >
               <div className="mb-6 group-hover:scale-110 transition-transform duration-500">
@@ -421,7 +474,8 @@ const Services = () => {
   );
 };
 
-const Gallery = () => {
+const Gallery = ({ lang }: { lang: Language }) => {
+  const t = translations[lang].gallery;
   const images = [
     { src: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?q=80&w=2070&auto=format&fit=crop", title: "DJ Performing" },
     { src: "https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?q=80&w=2070&auto=format&fit=crop", title: "Dance Floor" },
@@ -431,37 +485,191 @@ const Gallery = () => {
     { src: "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=2070&auto=format&fit=crop", title: "Party Atmosphere" },
   ];
 
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [direction, setDirection] = useState(0);
+
+  const slideVariants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? 1000 : -1000,
+      opacity: 0
+    }),
+    center: {
+      zIndex: 1,
+      x: 0,
+      opacity: 1
+    },
+    exit: (direction: number) => ({
+      zIndex: 0,
+      x: direction < 0 ? 1000 : -1000,
+      opacity: 0
+    })
+  };
+
+  const swipeConfidenceThreshold = 10000;
+  const swipePower = (offset: number, velocity: number) => {
+    return Math.abs(offset) * velocity;
+  };
+
+  const paginate = (newDirection: number) => {
+    setDirection(newDirection);
+    setCurrentIndex((prevIndex) => (prevIndex + newDirection + images.length) % images.length);
+  };
+
   return (
-    <section id="gallery" className="py-24 bg-black">
+    <section id="gallery" className="py-24 bg-black overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-end mb-12">
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-4"
+        >
           <div>
-            <h2 className="text-4xl md:text-5xl font-bold">Event <span className="gold-text-gradient">Gallery</span></h2>
-            <p className="text-white/50 mt-2">A glimpse into the unforgettable moments we've created.</p>
+            <h2 className="text-4xl md:text-5xl font-bold">
+              {lang === 'en' ? (
+                <>Event <span className="gold-text-gradient">Gallery</span></>
+              ) : lang === 'rw' ? (
+                <>Amafoto y' <span className="gold-text-gradient">ibirori</span></>
+              ) : (
+                <>Galerie d' <span className="gold-text-gradient">événements</span></>
+              )}
+            </h2>
+            <p className="text-white/50 mt-2">{t.subtitle}</p>
           </div>
+          <div className="flex gap-4">
+            <button 
+              onClick={() => paginate(-1)}
+              className="p-3 rounded-full border border-gold/20 text-gold hover:bg-gold hover:text-black transition-all"
+            >
+              <ChevronLeft size={24} />
+            </button>
+            <button 
+              onClick={() => paginate(1)}
+              className="p-3 rounded-full border border-gold/20 text-gold hover:bg-gold hover:text-black transition-all"
+            >
+              <ChevronRight size={24} />
+            </button>
+          </div>
+        </motion.div>
+
+        <div className="relative h-[400px] md:h-[600px] w-full flex items-center justify-center">
+          <AnimatePresence initial={false} custom={direction}>
+            <motion.div
+              key={currentIndex}
+              custom={direction}
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{
+                x: { type: "spring", stiffness: 300, damping: 30 },
+                opacity: { duration: 0.2 }
+              }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 0 }}
+              dragElastic={1}
+              onDragEnd={(e, { offset, velocity }) => {
+                const swipe = swipePower(offset.x, velocity.x);
+
+                if (swipe < -swipeConfidenceThreshold) {
+                  paginate(1);
+                } else if (swipe > swipeConfidenceThreshold) {
+                  paginate(-1);
+                }
+              }}
+              className="absolute w-full h-full"
+            >
+              <div className="relative w-full h-full rounded-3xl overflow-hidden group">
+                <img 
+                  src={images[currentIndex].src} 
+                  alt={images[currentIndex].title} 
+                  className="w-full h-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-8 md:p-12">
+                  <motion.div
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: 0.2 }}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <Camera className="text-gold w-5 h-5" />
+                      <span className="text-gold text-xs font-bold uppercase tracking-[0.2em]">Featured Moment</span>
+                    </div>
+                    <h3 className="text-2xl md:text-4xl font-bold text-white uppercase tracking-wider">{images[currentIndex].title}</h3>
+                  </motion.div>
+                </div>
+              </div>
+            </motion.div>
+          </AnimatePresence>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {images.map((img, index) => (
+        {/* Thumbnails/Dots */}
+        <div className="flex justify-center gap-3 mt-8">
+          {images.map((_, index) => (
+            <button
+              key={index}
+              onClick={() => {
+                setDirection(index > currentIndex ? 1 : -1);
+                setCurrentIndex(index);
+              }}
+              className={`h-1.5 transition-all duration-300 rounded-full ${currentIndex === index ? 'w-8 bg-gold' : 'w-2 bg-white/20 hover:bg-white/40'}`}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const Testimonials = ({ lang }: { lang: Language }) => {
+  const t = translations[lang].testimonials;
+
+  return (
+    <section id="testimonials" className="py-24 bg-black relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+            {lang === 'en' ? (
+              <>What Our <span className="gold-text-gradient">Clients Say</span></>
+            ) : lang === 'rw' ? (
+              <>Ibyo abakiriya <span className="gold-text-gradient">bacu bavuga</span></>
+            ) : (
+              <>Ce que disent <span className="gold-text-gradient">nos clients</span></>
+            )}
+          </h2>
+          <p className="text-white/50 max-w-2xl mx-auto">{t.subtitle}</p>
+        </motion.div>
+
+        <div className="grid md:grid-cols-3 gap-8">
+          {t.items.map((item, index) => (
             <motion.div
               key={index}
               initial={{ opacity: 0, scale: 0.9 }}
               whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              transition={{ delay: index * 0.1 }}
-              className="relative group overflow-hidden rounded-xl aspect-square"
+              transition={{ delay: index * 0.1, duration: 0.5 }}
+              className="bg-zinc-900/50 border border-gold/10 p-8 rounded-3xl relative group hover:border-gold/30 transition-all duration-500 flex flex-col h-full"
             >
-              <img 
-                src={img.src} 
-                alt={img.title} 
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                referrerPolicy="no-referrer"
-              />
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                <div className="text-center p-4">
-                  <Camera className="text-gold w-8 h-8 mx-auto mb-2" />
-                  <p className="text-white font-bold uppercase tracking-widest text-sm">{img.title}</p>
-                </div>
+              <div className="flex gap-1 mb-4">
+                {[...Array(5)].map((_, i) => (
+                  <Star key={i} size={16} className="fill-gold text-gold" />
+                ))}
+              </div>
+              <p className="text-white/80 italic mb-6 leading-relaxed">"{item.text}"</p>
+              <div className="mt-auto">
+                <h4 className="text-gold font-bold text-lg">{item.name}</h4>
+                <p className="text-white/40 text-xs uppercase tracking-widest">{item.event}</p>
+              </div>
+              <div className="absolute top-8 right-8 text-gold/5 opacity-20 group-hover:opacity-40 transition-opacity">
+                <MessageSquare size={64} />
               </div>
             </motion.div>
           ))}
@@ -471,7 +679,98 @@ const Gallery = () => {
   );
 };
 
-const Contact = () => {
+const Location = ({ lang }: { lang: Language }) => {
+  const t = translations[lang].location;
+  return (
+    <section id="location" className="py-24 bg-black relative overflow-hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="text-center mb-16"
+        >
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">{t.title.split('Headquarters')[0]} <span className="gold-text-gradient">Headquarters</span></h2>
+          <p className="text-white/50 max-w-2xl mx-auto">
+            {t.subtitle}
+          </p>
+        </motion.div>
+
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+          <motion.div 
+            initial={{ opacity: 0, x: -30 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            className="space-y-6"
+          >
+            <div className="bg-zinc-900/50 border border-gold/20 p-8 rounded-3xl h-full">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="bg-gold/10 p-3 rounded-full">
+                  <MapPin className="text-gold w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-bold text-white">{t.office}</h3>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-gold font-bold text-sm uppercase tracking-widest mb-1">{t.address}</p>
+                  <p className="text-white/70 leading-relaxed">
+                    {t.addressLine1}<br />
+                    {t.addressLine2}<br />
+                    {t.addressLine3}
+                  </p>
+                </div>
+                
+                <div className="pt-4 border-t border-white/5">
+                  <p className="text-gold font-bold text-sm uppercase tracking-widest mb-1">{t.serviceArea}</p>
+                  <p className="text-white/50 text-sm">
+                    {t.serviceAreaDesc}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, x: 30 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            className="space-y-6"
+          >
+            <div className="bg-gold/5 border border-gold/10 p-8 rounded-3xl h-full">
+              <h4 className="text-white font-bold mb-6 flex items-center gap-2">
+                <Briefcase size={18} className="text-gold" />
+                {t.businessHours}
+              </h4>
+              <div className="space-y-4 text-sm text-white/60">
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span>{t.monFri}</span>
+                  <span className="text-white font-medium">9:00 AM - 6:00 PM</span>
+                </div>
+                <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                  <span>{t.sat}</span>
+                  <span className="text-white font-medium">10:00 AM - 4:00 PM</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>{t.sun}</span>
+                  <span className="text-gold font-bold">{t.eventBookings}</span>
+                </div>
+              </div>
+              <div className="mt-8 p-4 bg-gold/10 rounded-2xl border border-gold/20">
+                <p className="text-gold text-[10px] uppercase font-bold tracking-widest text-center">
+                  {t.appointments}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const Contact = ({ lang }: { lang: Language }) => {
+  const t = translations[lang].contact;
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -479,34 +778,118 @@ const Contact = () => {
     message: ''
   });
 
+  const [errors, setErrors] = useState({
+    name: '',
+    phone: '',
+    date: '',
+    message: ''
+  });
+
+  const [touched, setTouched] = useState({
+    name: false,
+    phone: false,
+    date: false,
+    message: false
+  });
+
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  const validateField = (name: string, value: string) => {
+    let error = '';
+    switch (name) {
+      case 'name':
+        if (!value.trim()) error = t.errors.nameRequired;
+        else if (value.trim().length < 2) error = t.errors.nameMin;
+        break;
+      case 'phone':
+        const phoneRegex = /^\+?[\d\s-]{8,}$/;
+        if (!value.trim()) error = t.errors.phoneRequired;
+        else if (!phoneRegex.test(value)) error = t.errors.phoneInvalid;
+        break;
+      case 'date':
+        if (!value) error = t.errors.dateRequired;
+        else {
+          const selectedDate = new Date(value);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          if (selectedDate < today) error = t.errors.datePast;
+        }
+        break;
+      case 'message':
+        if (!value.trim()) error = t.errors.messageRequired;
+        else if (value.trim().length < 10) error = t.errors.messageMin;
+        break;
+    }
+    return error;
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (touched[name as keyof typeof touched]) {
+      setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
+    }
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setTouched(prev => ({ ...prev, [name]: true }));
+    setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
+  };
+
   const handleSubmit = (type: 'whatsapp' | 'email') => {
-    const message = `Booking Request from DJ'S SERVICES Website:
-Name: ${formData.name}
-Phone: ${formData.phone}
-Event Date: ${formData.date}
-Message: ${formData.message}`;
+    const newErrors = {
+      name: validateField('name', formData.name),
+      phone: validateField('phone', formData.phone),
+      date: validateField('date', formData.date),
+      message: validateField('message', formData.message)
+    };
+
+    setErrors(newErrors);
+    setTouched({ name: true, phone: true, date: true, message: true });
+
+    if (Object.values(newErrors).some(error => error !== '')) {
+      return;
+    }
+
+    const message = `${t.bookingRequest}:
+${t.name}: ${formData.name}
+${t.phone}: ${formData.phone}
+${t.date}: ${formData.date}
+${t.message}: ${formData.message}`;
 
     if (type === 'whatsapp') {
       const whatsappUrl = `https://wa.me/250798628085?text=${encodeURIComponent(message)}`;
       window.open(whatsappUrl, '_blank');
     } else {
-      const emailUrl = `mailto:079bizimanadjemmy@gmail.com?subject=New Booking Request - DJ'S SERVICES&body=${encodeURIComponent(message)}`;
+      const emailUrl = `mailto:079bizimanadjemmy@gmail.com?subject=${t.emailSubject}&body=${encodeURIComponent(message)}`;
       window.location.href = emailUrl;
     }
+
+    setIsSubmitted(true);
+  };
+
+  const resetForm = () => {
+    setFormData({ name: '', phone: '', date: '', message: '' });
+    setTouched({ name: false, phone: false, date: false, message: false });
+    setErrors({ name: '', phone: '', date: '', message: '' });
+    setIsSubmitted(false);
   };
 
   return (
     <section id="contact" className="py-24 bg-zinc-950 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-16">
-          <motion.div
-            initial={{ opacity: 0, x: -50 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-4xl md:text-5xl font-bold mb-8">Get in <span className="gold-text-gradient">Touch</span></h2>
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          whileInView={{ opacity: 1, scale: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+          className="grid lg:grid-cols-2 gap-16"
+        >
+          <div>
+            <h2 className="text-4xl md:text-5xl font-bold mb-8">{t.title.split('Touch')[0]} <span className="gold-text-gradient">Touch</span></h2>
             <p className="text-white/60 mb-12 text-lg">
-              Ready to make your event legendary? Contact us today to check availability and get a custom quote for your celebration.
+              {t.subtitle}
             </p>
 
             <div className="space-y-8">
@@ -515,7 +898,7 @@ Message: ${formData.message}`;
                   <Phone className="text-gold w-6 h-6" />
                 </div>
                 <div>
-                  <h4 className="text-white font-bold text-lg">Phone & WhatsApp</h4>
+                  <h4 className="text-white font-bold text-lg">{t.phoneWhatsapp}</h4>
                   <p className="text-white/50">+250 798 628 085</p>
                   <p className="text-white/50">+250 783 863 119</p>
                 </div>
@@ -527,7 +910,14 @@ Message: ${formData.message}`;
                 </div>
                 <div>
                   <h4 className="text-white font-bold text-lg">Instagram</h4>
-                  <p className="text-white/50">@djemmybz</p>
+                  <a 
+                    href="https://www.instagram.com/djemmybz/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-white/50 hover:text-gold transition-colors"
+                  >
+                    @djemmybz
+                  </a>
                 </div>
               </div>
 
@@ -537,95 +927,224 @@ Message: ${formData.message}`;
                 </div>
                 <div>
                   <h4 className="text-white font-bold text-lg">Facebook</h4>
-                  <p className="text-white/50">Emmy Bizimana</p>
+                  <a 
+                    href="https://www.facebook.com/emmy.bizimana.7" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-white/50 hover:text-gold transition-colors"
+                  >
+                    Emmy Bizimana
+                  </a>
                 </div>
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            className="bg-black p-8 md:p-12 rounded-3xl border border-gold/20 shadow-[0_0_50px_rgba(212,175,55,0.05)]"
-          >
-            <h3 className="text-2xl font-bold mb-8 flex items-center gap-3">
-              <Calendar className="text-gold" />
-              Book Your Date
-            </h3>
-            <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-white/50 text-sm uppercase tracking-widest mb-2">Name</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold outline-none transition-colors"
-                    placeholder="Your Name"
-                  />
-                </div>
-                <div>
-                  <label className="block text-white/50 text-sm uppercase tracking-widest mb-2">Phone</label>
-                  <input 
-                    type="tel" 
-                    required
-                    value={formData.phone}
-                    onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                    className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold outline-none transition-colors"
-                    placeholder="Phone Number"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-white/50 text-sm uppercase tracking-widest mb-2">Event Date</label>
-                <input 
-                  type="date" 
-                  required
-                  value={formData.date}
-                  onChange={(e) => setFormData({...formData, date: e.target.value})}
-                  className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold outline-none transition-colors"
-                />
-              </div>
-              <div>
-                <label className="block text-white/50 text-sm uppercase tracking-widest mb-2">Message</label>
-                <textarea 
-                  rows={4}
-                  value={formData.message}
-                  onChange={(e) => setFormData({...formData, message: e.target.value})}
-                  className="w-full bg-zinc-900 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-gold outline-none transition-colors"
-                  placeholder="Tell us about your event..."
-                ></textarea>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <button 
-                  type="button"
-                  onClick={() => handleSubmit('whatsapp')}
-                  className="flex items-center justify-center gap-2 bg-emerald-600 py-4 rounded-xl text-white font-bold uppercase tracking-widest hover:bg-emerald-500 transition-all"
+          <div className="bg-black p-8 md:p-12 rounded-3xl border border-gold/20 shadow-[0_0_50px_rgba(212,175,55,0.05)] min-h-[500px] flex flex-col">
+            <AnimatePresence mode="wait">
+              {!isSubmitted ? (
+                <motion.div
+                  key="form"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="w-full"
                 >
-                  <MessageSquare size={20} />
-                  Send to WhatsApp
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => handleSubmit('email')}
-                  className="flex items-center justify-center gap-2 gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all"
+                  <h3 className="text-2xl font-bold mb-8 flex items-center gap-3">
+                    <Calendar className="text-gold" />
+                    {t.bookTitle}
+                  </h3>
+                  <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div>
+                        <label className="block text-white/50 text-sm uppercase tracking-widest mb-2">{t.name}</label>
+                        <input 
+                          name="name"
+                          type="text" 
+                          value={formData.name}
+                          onChange={handleInputChange}
+                          onBlur={handleBlur}
+                          className={`w-full bg-zinc-900 border rounded-xl px-4 py-3 text-white outline-none transition-all ${
+                            touched.name && errors.name 
+                              ? 'border-red-500/50 focus:border-red-500' 
+                              : 'border-white/10 focus:border-gold'
+                          }`}
+                          placeholder={t.namePlaceholder}
+                        />
+                        <AnimatePresence>
+                          {touched.name && errors.name && (
+                            <motion.p 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="text-red-500 text-xs mt-1 ml-1"
+                            >
+                              {errors.name}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                      <div>
+                        <label className="block text-white/50 text-sm uppercase tracking-widest mb-2">{t.phone}</label>
+                        <input 
+                          name="phone"
+                          type="tel" 
+                          value={formData.phone}
+                          onChange={handleInputChange}
+                          onBlur={handleBlur}
+                          className={`w-full bg-zinc-900 border rounded-xl px-4 py-3 text-white outline-none transition-all ${
+                            touched.phone && errors.phone 
+                              ? 'border-red-500/50 focus:border-red-500' 
+                              : 'border-white/10 focus:border-gold'
+                          }`}
+                          placeholder={t.phonePlaceholder}
+                        />
+                        <AnimatePresence>
+                          {touched.phone && errors.phone && (
+                            <motion.p 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="text-red-500 text-xs mt-1 ml-1"
+                            >
+                              {errors.phone}
+                            </motion.p>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-white/50 text-sm uppercase tracking-widest mb-2">{t.date}</label>
+                      <input 
+                        name="date"
+                        type="date" 
+                        value={formData.date}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        className={`w-full bg-zinc-900 border rounded-xl px-4 py-3 text-white outline-none transition-all ${
+                          touched.date && errors.date 
+                            ? 'border-red-500/50 focus:border-red-500' 
+                            : 'border-white/10 focus:border-gold'
+                        }`}
+                      />
+                      <AnimatePresence>
+                        {touched.date && errors.date && (
+                          <motion.p 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="text-red-500 text-xs mt-1 ml-1"
+                          >
+                            {errors.date}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    <div>
+                      <label className="block text-white/50 text-sm uppercase tracking-widest mb-2">{t.message}</label>
+                      <textarea 
+                        name="message"
+                        rows={4}
+                        value={formData.message}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        className={`w-full bg-zinc-900 border rounded-xl px-4 py-3 text-white outline-none transition-all ${
+                          touched.message && errors.message 
+                            ? 'border-red-500/50 focus:border-red-500' 
+                            : 'border-white/10 focus:border-gold'
+                        }`}
+                        placeholder={t.messagePlaceholder}
+                      ></textarea>
+                      <AnimatePresence>
+                        {touched.message && errors.message && (
+                          <motion.p 
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="text-red-500 text-xs mt-1 ml-1"
+                          >
+                            {errors.message}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <button 
+                        type="button"
+                        onClick={() => handleSubmit('whatsapp')}
+                        className="flex items-center justify-center gap-2 bg-emerald-600 py-4 rounded-xl text-white font-bold uppercase tracking-widest hover:bg-emerald-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <MessageSquare size={20} />
+                        {t.sendWhatsapp}
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => handleSubmit('email')}
+                        className="flex items-center justify-center gap-2 gold-gradient py-4 rounded-xl text-black font-bold uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Send size={20} />
+                        {t.sendEmail}
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="success"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="flex flex-col items-center text-center py-8"
                 >
-                  <Send size={20} />
-                  Send via Email
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
+                  <div className="w-20 h-20 bg-gold/10 rounded-full flex items-center justify-center mb-6">
+                    <CheckCircle2 size={48} className="text-gold" />
+                  </div>
+                  <h3 className="text-3xl font-bold mb-4 gold-text-gradient">{t.successTitle}</h3>
+                  <p className="text-white/70 mb-8 max-w-md">
+                    {t.successSubtitle}
+                  </p>
+                  
+                  <div className="w-full bg-zinc-900/50 border border-gold/10 rounded-2xl p-6 mb-8 text-left">
+                    <h4 className="text-gold text-xs uppercase tracking-widest font-bold mb-4 border-b border-gold/10 pb-2">
+                      {t.bookingSummary}
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-white/40 text-sm">{t.name}</span>
+                        <span className="text-white font-medium">{formData.name}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white/40 text-sm">{t.date}</span>
+                        <span className="text-white font-medium">{formData.date}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-gold/10 border border-gold/20 rounded-xl px-6 py-3 mb-8">
+                    <p className="text-gold text-sm font-medium">
+                      {t.estimatedResponse}
+                    </p>
+                  </div>
+
+                  <button 
+                    onClick={resetForm}
+                    className="flex items-center gap-2 text-white/50 hover:text-gold transition-colors text-sm uppercase tracking-widest font-bold"
+                  >
+                    <ArrowLeft size={16} />
+                    {t.backToForm}
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
       </div>
     </section>
   );
 };
 
-const Footer = () => {
+const Footer = ({ lang }: { lang: Language }) => {
+  const t = translations[lang].footer;
   return (
     <footer className="bg-black py-12 border-t border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -634,13 +1153,34 @@ const Footer = () => {
           <span className="text-lg font-bold tracking-tighter gold-text-gradient uppercase">DJ'S SERVICES & BUSINESS</span>
         </div>
         <p className="text-white/40 text-sm mb-8">
-          © {new Date().getFullYear()} DJ'S SERVICES & BUSINESS. All rights reserved. <br />
-          Luxury Entertainment for Weddings and Elite Events.
+          © {new Date().getFullYear()} DJ'S SERVICES & BUSINESS. {t.rights} <br />
+          {t.designedBy}
         </p>
         <div className="flex justify-center gap-6">
-          <a href="#" className="text-white/40 hover:text-gold transition-colors"><Instagram size={20} /></a>
-          <a href="#" className="text-white/40 hover:text-gold transition-colors"><Facebook size={20} /></a>
-          <a href="#" className="text-white/40 hover:text-gold transition-colors"><MessageSquare size={20} /></a>
+          <a 
+            href="https://www.instagram.com/djemmybz/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-white/40 hover:text-gold transition-colors"
+          >
+            <Instagram size={20} />
+          </a>
+          <a 
+            href="https://www.facebook.com/emmy.bizimana.7" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-white/40 hover:text-gold transition-colors"
+          >
+            <Facebook size={20} />
+          </a>
+          <a 
+            href="https://wa.me/250798628085" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-white/40 hover:text-gold transition-colors"
+          >
+            <MessageSquare size={20} />
+          </a>
         </div>
       </div>
     </footer>
@@ -648,16 +1188,25 @@ const Footer = () => {
 };
 
 export default function App() {
+  const [lang, setLang] = useState<Language>('en');
+
   return (
-    <div className="min-h-screen font-sans selection:bg-gold selection:text-black">
-      <Navbar />
-      <Hero />
-      <About />
-      <Services />
-      <Gallery />
-      <Contact />
-      <Footer />
-      <AIChatbot />
-    </div>
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 1 }}
+      className="min-h-screen font-sans selection:bg-gold selection:text-black scroll-smooth"
+    >
+      <Navbar lang={lang} setLang={setLang} />
+      <Hero lang={lang} />
+      <About lang={lang} />
+      <Services lang={lang} />
+      <Gallery lang={lang} />
+      <Testimonials lang={lang} />
+      <Location lang={lang} />
+      <Contact lang={lang} />
+      <Footer lang={lang} />
+      <AIChatbot lang={lang} />
+    </motion.div>
   );
 }
