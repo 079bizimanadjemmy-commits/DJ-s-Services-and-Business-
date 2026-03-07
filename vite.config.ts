@@ -22,9 +22,9 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks: {
-            'gemini-vendor': ['@google/generative-ai'],
+            'genai-vendor': ['@google/genai'],
             'react-vendor': ['react', 'react-dom'],
-            'ui-vendor': ['@tailwindcss/vite'],
+            'ui-vendor': ['@tailwindcss/vite', 'lucide-react'],
           },
         },
       },
