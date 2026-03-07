@@ -22,3 +22,19 @@ export default defineConfig(({mode}) => {
     },
   };
 });
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          gemini: ['gemini'],
+          react: ['react', 'react-dom'],
+          ui: ['@your-ui-library']
+        },
+        chunkSizeWarningLimit: 1000
+      }
+    }
+  }
+});
