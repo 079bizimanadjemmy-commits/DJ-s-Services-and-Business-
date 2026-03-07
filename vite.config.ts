@@ -18,17 +18,5 @@ export default defineConfig(({ mode }) => {
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',
     },
-    build: {
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            'genai-vendor': ['@google/genai'],
-            'react-vendor': ['react', 'react-dom'],
-            'ui-vendor': ['@tailwindcss/vite', 'lucide-react'],
-          },
-        },
-      },
-      chunkSizeWarningLimit: 1000,
-    },
   };
 });
