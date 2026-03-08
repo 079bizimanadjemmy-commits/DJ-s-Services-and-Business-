@@ -1,5 +1,4 @@
-
-export type Language = 'en' | 'rw' | 'fr';
+export type { Language } from './types';
 
 export const translations = {
   en: {
@@ -116,8 +115,8 @@ export const translations = {
       sendEmail: 'Send via Email',
       success: 'Message sent successfully!',
       successTitle: 'Booking Request Received!',
-      successSubtitle: 'Thank you for choosing DJ\'S SERVICES. We have received your request and our team will review it shortly.',
-      estimatedResponse: 'Estimated Response Time: Within 2-4 hours',
+      successSubtitle: 'Thank you for choosing DJ\'S SERVICES. We have received your request. You will receive a confirmation via Email or WhatsApp shortly.',
+      estimatedResponse: 'Our team typically responds within 2-4 hours.',
       bookingSummary: 'Booking Summary',
       backToForm: 'Send Another Message',
       bookingRequest: "Booking Request from DJ'S SERVICES Website",
@@ -258,8 +257,8 @@ export const translations = {
       sendEmail: 'Ohereza kuri Email',
       success: 'Ubutumwa bwoherejwe neza!',
       successTitle: 'Gusaba Serivisi Kwakiriwe!',
-      successSubtitle: 'Murakoze guhitamo DJ\'S SERVICES. Twakiriye ubusabe bwanyu kandi itsinda ryacu rirabusuzuma vuba.',
-      estimatedResponse: 'Igihe cyo gusubizwa: Mu masaha 2 kugeza kuri 4',
+      successSubtitle: 'Murakoze guhitamo DJ\'S SERVICES. Twakiriye ubusabe bwanyu. Muzahabwa icyemezo binyuze kuri Email cyangwa WhatsApp vuba aha.',
+      estimatedResponse: 'Itsinda ryacu rirasubiza mubisanzwe mumasaha 2 kugeza kuri 4.',
       bookingSummary: 'Incamake y’ibyo wasabye',
       backToForm: 'Ohereza ubundi butumwa',
       bookingRequest: "Gusaba Serivisi bivuye ku rubuga rwa DJ'S SERVICES",
@@ -400,8 +399,8 @@ export const translations = {
       sendEmail: 'Envoyer par e-mail',
       success: 'Message envoyé avec succès !',
       successTitle: 'Demande de réservation reçue !',
-      successSubtitle: 'Merci d\'avoir choisi DJ\'S SERVICES. Nous avons bien reçu votre demande et notre équipe l\'examinera sous peu.',
-      estimatedResponse: 'Délai de réponse estimé : Dans les 2 à 4 heures',
+      successSubtitle: 'Merci d\'avoir choisi DJ\'S SERVICES. Nous avons bien reçu votre demande. Vous recevrez une confirmation par e-mail ou WhatsApp sous peu.',
+      estimatedResponse: 'Notre équipe répond généralement dans un délai de 2 à 4 heures.',
       bookingSummary: 'Résumé de la réservation',
       backToForm: 'Envoyer un autre message',
       bookingRequest: "Demande de réservation depuis le site DJ'S SERVICES",
