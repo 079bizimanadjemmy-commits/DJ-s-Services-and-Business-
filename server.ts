@@ -77,6 +77,20 @@ db.exec(`
   );
 `);
 
+// Migrations
+const addColumnIfMissing = (table: string, column: string, definition: string) => {
+  const info = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
+  const exists = info.some(col => col.name === column);
+  if (!exists) {
+    console.log(`Adding column ${column} to ${table}`);
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+};
+
+addColumnIfMissing('gallery', 'published', 'INTEGER DEFAULT 1');
+addColumnIfMissing('videos', 'published', 'INTEGER DEFAULT 1');
+addColumnIfMissing('reviews', 'published', 'INTEGER DEFAULT 0');
+
 // Seed gallery if empty
 const galleryCount = db.prepare("SELECT COUNT(*) as count FROM gallery").get() as { count: number };
 if (galleryCount.count === 0) {
@@ -134,13 +148,23 @@ async function startServer() {
   });
 
   app.get("/api/gallery", (req, res) => {
-    const images = db.prepare("SELECT * FROM gallery ORDER BY created_at DESC").all();
-    res.json(images);
+    try {
+      const images = db.prepare("SELECT * FROM gallery WHERE published = 1 ORDER BY created_at DESC").all();
+      res.json(images);
+    } catch (error) {
+      console.error("Failed to fetch gallery", error);
+      res.status(500).json({ error: "Failed to fetch gallery" });
+    }
   });
 
   app.get("/api/videos", (req, res) => {
-    const videos = db.prepare("SELECT * FROM videos ORDER BY created_at DESC").all();
-    res.json(videos);
+    try {
+      const videos = db.prepare("SELECT * FROM videos WHERE published = 1 ORDER BY created_at DESC").all();
+      res.json(videos);
+    } catch (error) {
+      console.error("Failed to fetch videos", error);
+      res.status(500).json({ error: "Failed to fetch videos" });
+    }
   });
 
   app.get("/api/reviews", (req, res) => {
@@ -232,6 +256,59 @@ async function startServer() {
     }
   });
 
+  app.get("/api/admin/gallery", (req, res) => {
+    const images = db.prepare("SELECT * FROM gallery ORDER BY created_at DESC").all();
+    res.json(images);
+  });
+
+  app.patch("/api/admin/gallery/:id/publish", (req, res) => {
+    const { id } = req.params;
+    const { published } = req.body;
+    try {
+      db.prepare("UPDATE gallery SET published = ? WHERE id = ?").run(published ? 1 : 0, id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update image visibility" });
+    }
+  });
+
+  app.put("/api/admin/gallery/:id", (req, res) => {
+    const { id } = req.params;
+    const { title, published } = req.body;
+    try {
+      db.prepare("UPDATE gallery SET title = ?, published = ? WHERE id = ?").run(title, published ? 1 : 0, id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update image" });
+    }
+  });
+
+  app.get("/api/admin/videos", (req, res) => {
+    const videos = db.prepare("SELECT * FROM videos ORDER BY created_at DESC").all();
+    res.json(videos);
+  });
+
+  app.patch("/api/admin/videos/:id/publish", (req, res) => {
+    const { id } = req.params;
+    const { published } = req.body;
+    try {
+      db.prepare("UPDATE videos SET published = ? WHERE id = ?").run(published ? 1 : 0, id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update video visibility" });
+    }
+  });
+
+  app.put("/api/admin/videos/:id", (req, res) => {
+    const { id } = req.params;
+    const { title, published } = req.body;
+    try {
+      db.prepare("UPDATE videos SET title = ?, published = ? WHERE id = ?").run(title, published ? 1 : 0, id);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update video" });
+    }
+  });
   app.get("/api/admin/bookings", (req, res) => {
     const bookings = db.prepare("SELECT * FROM bookings ORDER BY created_at DESC").all();
     res.json(bookings);
@@ -240,6 +317,16 @@ async function startServer() {
   app.get("/api/admin/reviews", (req, res) => {
     const reviews = db.prepare("SELECT * FROM reviews ORDER BY created_at DESC").all();
     res.json(reviews);
+  });
+
+  app.post("/api/admin/reviews", (req, res) => {
+    const { name, rating, comment, published } = req.body;
+    try {
+      db.prepare("INSERT INTO reviews (name, rating, comment, published) VALUES (?, ?, ?, ?)").run(name, rating, comment, published ? 1 : 0);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to add review" });
+    }
   });
 
   app.patch("/api/admin/reviews/:id/publish", (req, res) => {
@@ -264,9 +351,9 @@ async function startServer() {
   });
 
   app.post("/api/admin/gallery", (req, res) => {
-    const { src, title } = req.body;
+    const { src, title, published } = req.body;
     try {
-      const info = db.prepare("INSERT INTO gallery (src, title) VALUES (?, ?)").run(src, title);
+      const info = db.prepare("INSERT INTO gallery (src, title, published) VALUES (?, ?, ?)").run(src, title, published !== undefined ? (published ? 1 : 0) : 1);
       res.json({ success: true, id: info.lastInsertRowid });
     } catch (error) {
       res.status(500).json({ error: "Failed to add image" });
@@ -284,9 +371,9 @@ async function startServer() {
   });
 
   app.post("/api/admin/videos", (req, res) => {
-    const { url, title } = req.body;
+    const { url, title, published } = req.body;
     try {
-      const info = db.prepare("INSERT INTO videos (url, title) VALUES (?, ?)").run(url, title);
+      const info = db.prepare("INSERT INTO videos (url, title, published) VALUES (?, ?, ?)").run(url, title, published !== undefined ? (published ? 1 : 0) : 1);
       res.json({ success: true, id: info.lastInsertRowid });
     } catch (error) {
       res.status(500).json({ error: "Failed to add video" });

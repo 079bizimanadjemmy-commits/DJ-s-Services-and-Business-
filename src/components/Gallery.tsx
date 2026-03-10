@@ -19,7 +19,12 @@ const Gallery = ({ lang }: GalleryProps) => {
       try {
         const res = await fetch('/api/gallery');
         const data = await res.json();
-        setImages(data);
+        if (Array.isArray(data)) {
+          setImages(data);
+        } else {
+          console.error("Gallery data is not an array:", data);
+          setImages([]);
+        }
       } catch (error) {
         console.error("Failed to fetch gallery", error);
       } finally {

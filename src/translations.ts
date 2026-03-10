@@ -112,6 +112,7 @@ export const translations = {
       message: 'Message',
       messagePlaceholder: 'Tell us about your event...',
       sendWhatsapp: 'Send via WhatsApp',
+      sendSMS: 'Send via SMS',
       sendEmail: 'Send via Email',
       success: 'Message sent successfully!',
       successTitle: 'Booking Request Received!',
@@ -131,6 +132,11 @@ export const translations = {
         messageRequired: 'Message is required',
         messageMin: 'Message must be at least 10 characters',
       }
+    },
+    consultation: {
+      title: 'Book a Consultation',
+      subtitle: 'Let us help you plan the perfect event. Schedule a free consultation with our event specialists.',
+      button: 'Schedule Now',
     },
     footer: {
       rights: 'All rights reserved.',
@@ -254,6 +260,7 @@ export const translations = {
       message: 'Ubutumwa',
       messagePlaceholder: 'Tubwire ibyerekeye ibirori byawe...',
       sendWhatsapp: 'Ohereza kuri WhatsApp',
+      sendSMS: 'Ohereza kuri SMS',
       sendEmail: 'Ohereza kuri Email',
       success: 'Ubutumwa bwoherejwe neza!',
       successTitle: 'Gusaba Serivisi Kwakiriwe!',
@@ -273,6 +280,11 @@ export const translations = {
         messageRequired: 'Ubutumwa burakenewe',
         messageMin: 'Ubutumwa bugomba kugira nibura inyuguti 10',
       }
+    },
+    consultation: {
+      title: 'Saba Inama',
+      subtitle: "Tugufashe gutegura ibirori byiza cyane. Fata umwanya w'inama y'ubuntu n'inzobere zacu mu gutegura ibirori.",
+      button: 'Fata Gahunda None',
     },
     footer: {
       rights: 'Uburenganzira bwose burasigasirwa.',
@@ -396,6 +408,7 @@ export const translations = {
       message: 'Message',
       messagePlaceholder: 'Parlez-nous de votre événement...',
       sendWhatsapp: 'Envoyer via WhatsApp',
+      sendSMS: 'Envoyer via SMS',
       sendEmail: 'Envoyer par e-mail',
       success: 'Message envoyé avec succès !',
       successTitle: 'Demande de réservation reçue !',
@@ -415,6 +428,11 @@ export const translations = {
         messageRequired: 'Le message est requis',
         messageMin: 'Le message doit comporter au moins 10 caractères',
       }
+    },
+    consultation: {
+      title: 'Réserver une consultation',
+      subtitle: "Laissez-nous vous aider à planifier l'événement parfait. Planifiez une consultation gratuite avec nos spécialistes de l'événementiel.",
+      button: 'Planifier maintenant',
     },
     footer: {
       rights: 'Tous droits réservés.',

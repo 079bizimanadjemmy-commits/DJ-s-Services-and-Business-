@@ -16,7 +16,12 @@ const Videos = ({ lang }: VideosProps) => {
       try {
         const res = await fetch('/api/videos');
         const data = await res.json();
-        setVideos(data);
+        if (Array.isArray(data)) {
+          setVideos(data);
+        } else {
+          console.error("Videos data is not an array:", data);
+          setVideos([]);
+        }
       } catch (error) {
         console.error("Failed to fetch videos", error);
       } finally {

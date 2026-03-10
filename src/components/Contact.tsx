@@ -75,7 +75,7 @@ const Contact = ({ lang }: ContactProps) => {
     setErrors(prev => ({ ...prev, [name]: validateField(name, value) }));
   };
 
-  const handleSubmit = async (type: 'whatsapp' | 'email') => {
+  const handleSubmit = async (type: 'whatsapp' | 'email' | 'sms') => {
     const newErrors = {
       name: validateField('name', formData.name),
       phone: validateField('phone', formData.phone),
@@ -110,6 +110,9 @@ ${t.message}: ${formData.message}`;
     if (type === 'whatsapp') {
       const whatsappUrl = `https://wa.me/250798628085?text=${encodeURIComponent(message)}`;
       window.open(whatsappUrl, '_blank');
+    } else if (type === 'sms') {
+      const smsUrl = `sms:+250798628085?body=${encodeURIComponent(message)}`;
+      window.location.href = smsUrl;
     } else {
       const emailUrl = `mailto:079bizimanadjemmy@gmail.com?subject=${t.emailSubject}&body=${encodeURIComponent(message)}`;
       window.location.href = emailUrl;
@@ -318,19 +321,27 @@ ${t.message}: ${formData.message}`;
                       </AnimatePresence>
                     </div>
                     
-                    <div className="grid md:grid-cols-2 gap-4">
+                    <div className="grid md:grid-cols-3 gap-4">
                       <button 
                         type="button" 
                         onClick={() => handleSubmit('whatsapp')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all uppercase tracking-widest text-xs"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all uppercase tracking-widest text-[10px]"
                       >
                         <MessageSquare size={18} />
                         {t.sendWhatsapp}
                       </button>
                       <button 
                         type="button" 
+                        onClick={() => handleSubmit('sms')}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all uppercase tracking-widest text-[10px]"
+                      >
+                        <Phone size={18} />
+                        {t.sendSMS}
+                      </button>
+                      <button 
+                        type="button" 
                         onClick={() => handleSubmit('email')}
-                        className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all uppercase tracking-widest text-xs"
+                        className="bg-zinc-800 hover:bg-zinc-700 text-white font-bold py-4 rounded-xl flex flex-col items-center justify-center gap-1 transition-all uppercase tracking-widest text-[10px]"
                       >
                         <Send size={18} />
                         {t.sendEmail}
