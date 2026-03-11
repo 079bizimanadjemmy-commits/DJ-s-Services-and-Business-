@@ -67,10 +67,10 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
       const reviewsData = await reviewsRes.json();
       const smtpData = await smtpRes.json();
       
-      setBookings(bookingsData);
-      setGallery(galleryData);
-      setVideos(videosData);
-      setReviews(reviewsData);
+      if (Array.isArray(bookingsData)) setBookings(bookingsData);
+      if (Array.isArray(galleryData)) setGallery(galleryData);
+      if (Array.isArray(videosData)) setVideos(videosData);
+      if (Array.isArray(reviewsData)) setReviews(reviewsData);
       setSmtpSettings({
         host: smtpData.host || '',
         port: smtpData.port || 587,
@@ -440,7 +440,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                       <input 
                         type="text" 
                         required
-                        value={editingImage.title}
+                        value={editingImage.title || ''}
                         onChange={e => setEditingImage({...editingImage, title: e.target.value})}
                         className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
                       />
@@ -602,7 +602,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                       <input 
                         type="text" 
                         required
-                        value={editingVideo.title}
+                        value={editingVideo.title || ''}
                         onChange={e => setEditingVideo({...editingVideo, title: e.target.value})}
                         className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
                       />
@@ -894,7 +894,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                     <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">SMTP Host</label>
                     <input 
                       type="text" 
-                      value={smtpSettings.host}
+                      value={smtpSettings.host || ''}
                       onChange={e => setSmtpSettings({...smtpSettings, host: e.target.value})}
                       placeholder="smtp.gmail.com"
                       className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
@@ -904,7 +904,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                     <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">SMTP Port</label>
                     <input 
                       type="number" 
-                      value={smtpSettings.port}
+                      value={smtpSettings.port || ''}
                       onChange={e => setSmtpSettings({...smtpSettings, port: parseInt(e.target.value)})}
                       placeholder="587"
                       className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
@@ -915,7 +915,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                   <label className="block text-xs uppercase tracking-widest text-white/40 mb-2">SMTP User (Email)</label>
                   <input 
                     type="email" 
-                    value={smtpSettings.user}
+                    value={smtpSettings.user || ''}
                     onChange={e => setSmtpSettings({...smtpSettings, user: e.target.value})}
                     placeholder="your-email@gmail.com"
                     className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-gold outline-none"
@@ -926,7 +926,7 @@ const AdminDashboard = ({ onLogout }: AdminDashboardProps) => {
                   <div className="relative">
                     <input 
                       type={showSmtpPass ? "text" : "password"} 
-                      value={smtpSettings.pass}
+                      value={smtpSettings.pass || ''}
                       onChange={e => setSmtpSettings({...smtpSettings, pass: e.target.value})}
                       placeholder="Leave empty to keep current"
                       className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 pr-12 text-sm focus:border-gold outline-none transition-all"

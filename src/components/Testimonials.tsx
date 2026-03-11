@@ -24,7 +24,11 @@ const Testimonials = ({ lang }: TestimonialsProps) => {
     try {
       const res = await fetch('/api/reviews');
       const data = await res.json();
-      setReviews(data);
+      if (Array.isArray(data)) {
+        setReviews(data);
+      } else {
+        setReviews([]);
+      }
     } catch (error) {
       console.error("Failed to fetch reviews", error);
     } finally {

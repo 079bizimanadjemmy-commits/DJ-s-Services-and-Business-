@@ -1,6 +1,6 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import Database from "better-sqlite3";
+import { createClient } from "@supabase/supabase-js";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
@@ -19,7 +19,10 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
 
-const db = new Database("database.db");
+// Supabase Configuration
+const supabaseUrl = process.env.SUPABASE_URL || "https://uhomwphvihjojavplcvb.supabase.co";
+const supabaseKey = process.env.SUPABASE_KEY || "sb_publishable_DT3N6nRTKKLVYBk2yZ1biA_aHbQ27-v";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Configure multer
 const storage = multer.diskStorage({
@@ -37,96 +40,19 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
 
-// Initialize database
-db.exec(`
-  CREATE TABLE IF NOT EXISTS bookings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    phone TEXT,
-    date TEXT,
-    message TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS gallery (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    src TEXT,
-    title TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS videos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    url TEXT,
-    title TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS reviews (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    rating INTEGER,
-    comment TEXT,
-    published INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  );
-`);
-
-// Migrations
-const addColumnIfMissing = (table: string, column: string, definition: string) => {
-  const info = db.prepare(`PRAGMA table_info(${table})`).all() as any[];
-  const exists = info.some(col => col.name === column);
-  if (!exists) {
-    console.log(`Adding column ${column} to ${table}`);
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
-};
-
-addColumnIfMissing('gallery', 'published', 'INTEGER DEFAULT 1');
-addColumnIfMissing('videos', 'published', 'INTEGER DEFAULT 1');
-addColumnIfMissing('reviews', 'published', 'INTEGER DEFAULT 0');
-
-// Seed gallery if empty
-const galleryCount = db.prepare("SELECT COUNT(*) as count FROM gallery").get() as { count: number };
-if (galleryCount.count === 0) {
-  const seedImages = [
-    { src: "https://images.unsplash.com/photo-1533174072545-7a4b6ad7a6c3?q=80&w=2070&auto=format&fit=crop", title: "DJ Performing" },
-    { src: "https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?q=80&w=2070&auto=format&fit=crop", title: "Dance Floor" },
-    { src: "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=2070&auto=format&fit=crop", title: "Wedding Celebration" },
-    { src: "https://images.unsplash.com/photo-1514525253361-bee8718a340b?q=80&w=1974&auto=format&fit=crop", title: "DJ Equipment" },
-    { src: "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?q=80&w=2070&auto=format&fit=crop", title: "Event Lighting" },
-    { src: "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?q=80&w=2070&auto=format&fit=crop", title: "Party Atmosphere" },
-  ];
-  const insert = db.prepare("INSERT INTO gallery (src, title) VALUES (?, ?)");
-  seedImages.forEach(img => insert.run(img.src, img.title));
-}
-
-// Seed default password if not set
-const adminPass = db.prepare("SELECT value FROM settings WHERE key = 'admin_password'").get() as { value: string } | undefined;
-if (!adminPass) {
-  db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run('admin_password', process.env.ADMIN_PASSWORD || 'admin123');
-}
-
-// Helper to get SMTP config from DB or Env
-const getSmtpConfig = () => {
-  const host = db.prepare("SELECT value FROM settings WHERE key = 'smtp_host'").get() as { value: string } | undefined;
-  const port = db.prepare("SELECT value FROM settings WHERE key = 'smtp_port'").get() as { value: string } | undefined;
-  const user = db.prepare("SELECT value FROM settings WHERE key = 'smtp_user'").get() as { value: string } | undefined;
-  const pass = db.prepare("SELECT value FROM settings WHERE key = 'smtp_pass'").get() as { value: string } | undefined;
-  const secure = db.prepare("SELECT value FROM settings WHERE key = 'smtp_secure'").get() as { value: string } | undefined;
+// Helper to get SMTP config from Supabase or Env
+const getSmtpConfig = async () => {
+  const { data: settings } = await supabase.from('settings').select('*');
+  
+  const getSetting = (key: string) => settings?.find(s => s.key === key)?.value;
 
   return {
-    host: (host?.value || process.env.SMTP_HOST || "smtp.gmail.com").replace(/^https?:\/\//, '').split('/')[0],
-    port: parseInt(port?.value || process.env.SMTP_PORT || "587"),
-    secure: (secure?.value || process.env.SMTP_SECURE) === "true",
+    host: (getSetting('smtp_host') || process.env.SMTP_HOST || "smtp.gmail.com").replace(/^https?:\/\//, '').split('/')[0],
+    port: parseInt(getSetting('smtp_port') || process.env.SMTP_PORT || "587"),
+    secure: (getSetting('smtp_secure') || process.env.SMTP_SECURE) === "true",
     auth: {
-      user: user?.value || process.env.SMTP_USER,
-      pass: pass?.value || process.env.SMTP_PASS,
+      user: getSetting('smtp_user') || process.env.SMTP_USER,
+      pass: getSetting('smtp_pass') || process.env.SMTP_PASS,
     },
   };
 };
@@ -138,7 +64,109 @@ async function startServer() {
   app.use(express.json());
   app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+  // Admin Routes (Direct Password Auth)
+  app.post("/api/admin/login", async (req, res) => {
+    const { email, password } = req.body;
+    const adminEmail = process.env.ADMIN_EMAIL || "079bizimanadjemmy@gmail.com";
+    
+    try {
+      const { data: settings } = await supabase.from('settings').select('*').eq('key', 'admin_password').single();
+      const adminPassword = settings?.value || process.env.ADMIN_PASSWORD || "073bizimana59";
+
+      if (email === adminEmail && password === adminPassword) {
+        res.json({ success: true, token: "mock-jwt-token" });
+      } else {
+        res.status(401).json({ error: "Invalid email or password" });
+      }
+    } catch (error) {
+      // Fallback to env if table doesn't exist yet
+      const adminPassword = process.env.ADMIN_PASSWORD || "073bizimana59";
+      if (email === adminEmail && password === adminPassword) {
+        res.json({ success: true, token: "mock-jwt-token" });
+      } else {
+        res.status(401).json({ error: "Invalid email or password" });
+      }
+    }
+  });
+
   // API Routes
+
+  app.get("/api/gallery", async (req, res) => {
+    try {
+      const { data: images, error } = await supabase
+        .from('gallery')
+        .select('*')
+        .eq('published', 1)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      res.json(images);
+    } catch (error) {
+      console.error("Failed to fetch gallery", error);
+      res.status(500).json({ error: "Failed to fetch gallery" });
+    }
+  });
+
+  app.get("/api/videos", async (req, res) => {
+    try {
+      const { data: videos, error } = await supabase
+        .from('videos')
+        .select('*')
+        .eq('published', 1)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      res.json(videos);
+    } catch (error) {
+      console.error("Failed to fetch videos", error);
+      res.status(500).json({ error: "Failed to fetch videos" });
+    }
+  });
+
+  app.get("/api/reviews", async (req, res) => {
+    try {
+      const { data: reviews, error } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('published', 1)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      res.json(reviews);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch reviews" });
+    }
+  });
+
+  app.post("/api/reviews", async (req, res) => {
+    const { name, rating, comment } = req.body;
+    try {
+      const { error } = await supabase
+        .from('reviews')
+        .insert([{ name, rating, comment }]);
+      
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to submit review" });
+    }
+  });
+
+  app.post("/api/bookings", async (req, res) => {
+    const { name, phone, date, message } = req.body;
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .insert([{ name, phone, date, message }])
+        .select();
+      
+      if (error) throw error;
+      res.json({ success: true, id: data?.[0]?.id });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to save booking" });
+    }
+  });
+
   app.post("/api/admin/upload", upload.single("file"), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -147,88 +175,39 @@ async function startServer() {
     res.json({ url });
   });
 
-  app.get("/api/gallery", (req, res) => {
-    try {
-      const images = db.prepare("SELECT * FROM gallery WHERE published = 1 ORDER BY created_at DESC").all();
-      res.json(images);
-    } catch (error) {
-      console.error("Failed to fetch gallery", error);
-      res.status(500).json({ error: "Failed to fetch gallery" });
-    }
-  });
-
-  app.get("/api/videos", (req, res) => {
-    try {
-      const videos = db.prepare("SELECT * FROM videos WHERE published = 1 ORDER BY created_at DESC").all();
-      res.json(videos);
-    } catch (error) {
-      console.error("Failed to fetch videos", error);
-      res.status(500).json({ error: "Failed to fetch videos" });
-    }
-  });
-
-  app.get("/api/reviews", (req, res) => {
-    const reviews = db.prepare("SELECT * FROM reviews WHERE published = 1 ORDER BY created_at DESC").all();
-    res.json(reviews);
-  });
-
-  app.post("/api/reviews", (req, res) => {
-    const { name, rating, comment } = req.body;
-    try {
-      db.prepare("INSERT INTO reviews (name, rating, comment) VALUES (?, ?, ?)").run(name, rating, comment);
-      res.json({ success: true });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to submit review" });
-    }
-  });
-
-  app.post("/api/bookings", (req, res) => {
-    const { name, phone, date, message } = req.body;
-    try {
-      const info = db.prepare("INSERT INTO bookings (name, phone, date, message) VALUES (?, ?, ?, ?)").run(name, phone, date, message);
-      res.json({ success: true, id: info.lastInsertRowid });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to save booking" });
-    }
-  });
-
-  // Admin Routes (Direct Password Auth)
-  app.post("/api/admin/login", (req, res) => {
-    const { email, password } = req.body;
-    const adminEmail = process.env.ADMIN_EMAIL || "079bizimanadjemmy@gmail.com";
-    const adminPassword = process.env.ADMIN_PASSWORD || "073bizimana59";
-
-    if (email === adminEmail && password === adminPassword) {
-      res.json({ success: true, token: "mock-jwt-token" });
-    } else {
-      res.status(401).json({ error: "Invalid email or password" });
-    }
-  });
-
-  app.post("/api/admin/change-password", (req, res) => {
+  app.post("/api/admin/change-password", async (req, res) => {
     const { newPassword } = req.body;
     try {
-      db.prepare("UPDATE settings SET value = ? WHERE key = 'admin_password'").run(newPassword);
+      const { error } = await supabase
+        .from('settings')
+        .upsert({ key: 'admin_password', value: newPassword });
+      
+      if (error) throw error;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update password" });
     }
   });
 
-  app.get("/api/admin/smtp-settings", (req, res) => {
-    const config = getSmtpConfig();
+  app.get("/api/admin/smtp-settings", async (req, res) => {
+    const config = await getSmtpConfig();
     res.json(config);
   });
 
-  app.post("/api/admin/smtp-settings", (req, res) => {
+  app.post("/api/admin/smtp-settings", async (req, res) => {
     const { host, port, user, pass, secure } = req.body;
     try {
-      const upsert = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
-      upsert.run('smtp_host', host);
-      upsert.run('smtp_port', port.toString());
-      upsert.run('smtp_user', user);
-      if (pass) upsert.run('smtp_pass', pass);
-      upsert.run('smtp_secure', secure ? "true" : "false");
+      const updates = [
+        { key: 'smtp_host', value: host },
+        { key: 'smtp_port', value: port.toString() },
+        { key: 'smtp_user', value: user },
+        { key: 'smtp_secure', value: secure ? "true" : "false" }
+      ];
+      if (pass) updates.push({ key: 'smtp_pass', value: pass });
+
+      const { error } = await supabase.from('settings').upsert(updates);
+      
+      if (error) throw error;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update SMTP settings" });
@@ -236,7 +215,7 @@ async function startServer() {
   });
 
   app.post("/api/admin/test-email", async (req, res) => {
-    const smtpConfig = getSmtpConfig();
+    const smtpConfig = await getSmtpConfig();
     if (!smtpConfig.auth.user) {
       return res.status(400).json({ error: "SMTP User not configured" });
     }
@@ -256,134 +235,225 @@ async function startServer() {
     }
   });
 
-  app.get("/api/admin/gallery", (req, res) => {
-    const images = db.prepare("SELECT * FROM gallery ORDER BY created_at DESC").all();
-    res.json(images);
+  app.get("/api/admin/gallery", async (req, res) => {
+    try {
+      const { data: images, error } = await supabase
+        .from('gallery')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      res.json(images);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch gallery" });
+    }
   });
 
-  app.patch("/api/admin/gallery/:id/publish", (req, res) => {
+  app.patch("/api/admin/gallery/:id/publish", async (req, res) => {
     const { id } = req.params;
     const { published } = req.body;
     try {
-      db.prepare("UPDATE gallery SET published = ? WHERE id = ?").run(published ? 1 : 0, id);
+      const { error } = await supabase
+        .from('gallery')
+        .update({ published: published ? 1 : 0 })
+        .eq('id', id);
+      
+      if (error) throw error;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update image visibility" });
     }
   });
 
-  app.put("/api/admin/gallery/:id", (req, res) => {
+  app.put("/api/admin/gallery/:id", async (req, res) => {
     const { id } = req.params;
     const { title, published } = req.body;
     try {
-      db.prepare("UPDATE gallery SET title = ?, published = ? WHERE id = ?").run(title, published ? 1 : 0, id);
+      const { error } = await supabase
+        .from('gallery')
+        .update({ title, published: published ? 1 : 0 })
+        .eq('id', id);
+      
+      if (error) throw error;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update image" });
     }
   });
 
-  app.get("/api/admin/videos", (req, res) => {
-    const videos = db.prepare("SELECT * FROM videos ORDER BY created_at DESC").all();
-    res.json(videos);
+  app.get("/api/admin/videos", async (req, res) => {
+    try {
+      const { data: videos, error } = await supabase
+        .from('videos')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      res.json(videos);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch videos" });
+    }
   });
 
-  app.patch("/api/admin/videos/:id/publish", (req, res) => {
+  app.patch("/api/admin/videos/:id/publish", async (req, res) => {
     const { id } = req.params;
     const { published } = req.body;
     try {
-      db.prepare("UPDATE videos SET published = ? WHERE id = ?").run(published ? 1 : 0, id);
+      const { error } = await supabase
+        .from('videos')
+        .update({ published: published ? 1 : 0 })
+        .eq('id', id);
+      
+      if (error) throw error;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update video visibility" });
     }
   });
 
-  app.put("/api/admin/videos/:id", (req, res) => {
+  app.put("/api/admin/videos/:id", async (req, res) => {
     const { id } = req.params;
     const { title, published } = req.body;
     try {
-      db.prepare("UPDATE videos SET title = ?, published = ? WHERE id = ?").run(title, published ? 1 : 0, id);
+      const { error } = await supabase
+        .from('videos')
+        .update({ title, published: published ? 1 : 0 })
+        .eq('id', id);
+      
+      if (error) throw error;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update video" });
     }
   });
-  app.get("/api/admin/bookings", (req, res) => {
-    const bookings = db.prepare("SELECT * FROM bookings ORDER BY created_at DESC").all();
-    res.json(bookings);
+
+  app.get("/api/admin/bookings", async (req, res) => {
+    try {
+      const { data: bookings, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      res.json(bookings);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch bookings" });
+    }
   });
 
-  app.get("/api/admin/reviews", (req, res) => {
-    const reviews = db.prepare("SELECT * FROM reviews ORDER BY created_at DESC").all();
-    res.json(reviews);
+  app.get("/api/admin/reviews", async (req, res) => {
+    try {
+      const { data: reviews, error } = await supabase
+        .from('reviews')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      res.json(reviews);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch reviews" });
+    }
   });
 
-  app.post("/api/admin/reviews", (req, res) => {
+  app.post("/api/admin/reviews", async (req, res) => {
     const { name, rating, comment, published } = req.body;
     try {
-      db.prepare("INSERT INTO reviews (name, rating, comment, published) VALUES (?, ?, ?, ?)").run(name, rating, comment, published ? 1 : 0);
+      const { error } = await supabase
+        .from('reviews')
+        .insert([{ name, rating, comment, published: published ? 1 : 0 }]);
+      
+      if (error) throw error;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to add review" });
     }
   });
 
-  app.patch("/api/admin/reviews/:id/publish", (req, res) => {
+  app.patch("/api/admin/reviews/:id/publish", async (req, res) => {
     const { id } = req.params;
     const { published } = req.body;
     try {
-      db.prepare("UPDATE reviews SET published = ? WHERE id = ?").run(published ? 1 : 0, id);
+      const { error } = await supabase
+        .from('reviews')
+        .update({ published: published ? 1 : 0 })
+        .eq('id', id);
+      
+      if (error) throw error;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update review" });
     }
   });
 
-  app.delete("/api/admin/reviews/:id", (req, res) => {
+  app.delete("/api/admin/reviews/:id", async (req, res) => {
     const { id } = req.params;
     try {
-      db.prepare("DELETE FROM reviews WHERE id = ?").run(id);
+      const { error } = await supabase
+        .from('reviews')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete review" });
     }
   });
 
-  app.post("/api/admin/gallery", (req, res) => {
+  app.post("/api/admin/gallery", async (req, res) => {
     const { src, title, published } = req.body;
     try {
-      const info = db.prepare("INSERT INTO gallery (src, title, published) VALUES (?, ?, ?)").run(src, title, published !== undefined ? (published ? 1 : 0) : 1);
-      res.json({ success: true, id: info.lastInsertRowid });
+      const { data, error } = await supabase
+        .from('gallery')
+        .insert([{ src, title, published: published !== undefined ? (published ? 1 : 0) : 1 }])
+        .select();
+      
+      if (error) throw error;
+      res.json({ success: true, id: data?.[0]?.id });
     } catch (error) {
       res.status(500).json({ error: "Failed to add image" });
     }
   });
 
-  app.delete("/api/admin/gallery/:id", (req, res) => {
+  app.delete("/api/admin/gallery/:id", async (req, res) => {
     const { id } = req.params;
     try {
-      db.prepare("DELETE FROM gallery WHERE id = ?").run(id);
+      const { error } = await supabase
+        .from('gallery')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete image" });
     }
   });
 
-  app.post("/api/admin/videos", (req, res) => {
+  app.post("/api/admin/videos", async (req, res) => {
     const { url, title, published } = req.body;
     try {
-      const info = db.prepare("INSERT INTO videos (url, title, published) VALUES (?, ?, ?)").run(url, title, published !== undefined ? (published ? 1 : 0) : 1);
-      res.json({ success: true, id: info.lastInsertRowid });
+      const { data, error } = await supabase
+        .from('videos')
+        .insert([{ url, title, published: published !== undefined ? (published ? 1 : 0) : 1 }])
+        .select();
+      
+      if (error) throw error;
+      res.json({ success: true, id: data?.[0]?.id });
     } catch (error) {
       res.status(500).json({ error: "Failed to add video" });
     }
   });
 
-  app.delete("/api/admin/videos/:id", (req, res) => {
+  app.delete("/api/admin/videos/:id", async (req, res) => {
     const { id } = req.params;
     try {
-      db.prepare("DELETE FROM videos WHERE id = ?").run(id);
+      const { error } = await supabase
+        .from('videos')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete video" });
